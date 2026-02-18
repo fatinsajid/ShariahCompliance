@@ -1,0 +1,3 @@
+contract_id,contract_type,asset_owned_before_sale,profit_disclosed,profit_ratio
+M001,MURABAHA,yes,yes,
+D001,MUDARABAH,,yes,0.6

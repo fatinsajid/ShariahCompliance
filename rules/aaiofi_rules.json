@@ -1,0 +1,18 @@
+[
+  {
+    "rule_code": "AAOIFI_001",
+    "name": "Debt to Asset Ratio",
+    "threshold": 0.30,
+    "severity": "HIGH",
+    "field_formula": "total_debt / total_assets",
+    "standard_reference": "AAOIFI Shariah Screening Methodology"
+  },
+  {
+    "rule_code": "AAOIFI_002",
+    "name": "Non-Halal Income Ratio",
+    "threshold": 0.05,
+    "severity": "HIGH",
+    "field_formula": "non_halal_income / total_income",
+    "standard_reference": "AAOIFI Shariah Screening Methodology"
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "code": "R_BB_002",
+  "name": "SectorBlacklist",
+  "applies_to": ["company","contract"],
+  "rationale": "Flag transactions or investments tied to explicitly non-permissible sectors per Shariah governance.",
+  "params": {
+    "blacklist": ["alcohol","pork","gambling","conventional_banking","pornography","tobacco","armaments"]
+  },
+  "severity": "CRITICAL",
+  "example_evaluation": "company.sector in blacklist"
+}

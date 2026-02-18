@@ -1,0 +1,12 @@
+{
+  "code": "R_AAOIFI_004",
+  "name": "IncomePurificationCalculation",
+  "applies_to": ["company","investment"],
+  "rationale": "Compute purification owed when non-halal income exists; produce purification_amount.",
+  "params": {
+    "purification_method": "proportional",
+    "rounding": "nearest_currency_unit"
+  },
+  "severity": "MEDIUM",
+  "example_evaluation": "purification_amount = (non_halal_income/total_income) * distributable_profit"
+}

@@ -1,0 +1,12 @@
+{
+  "code": "R_BB_001",
+  "name": "LatePenaltyCharityOnly",
+  "applies_to": ["contract","loan"],
+  "rationale": "Flag when penalties are used as revenue; penalties should be directed to charity/purification per Shariah governance.",
+  "params": {
+    "allow_penalty": true,
+    "penalty_to_charity_only": true
+  },
+  "severity": "HIGH",
+  "example_evaluation": "if contract.penalty_amount > 0 then contract.penalty_destination == 'charity'"
+}

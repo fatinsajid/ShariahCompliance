@@ -1,0 +1,11 @@
+{
+  "code": "R_AAOIFI_005",
+  "name": "ProfitSharingConsistency",
+  "applies_to": ["contract"],
+  "rationale": "Verify that profit distribution matches contractual PLS ratios and that loss allocation follows terms.",
+  "params": {
+    "tolerance_percent": 0.01
+  },
+  "severity": "HIGH",
+  "example_evaluation": "abs(actual_profit_share - contract.profit_share) <= tolerance"
+}

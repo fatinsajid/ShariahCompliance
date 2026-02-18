@@ -1,0 +1,12 @@
+{
+  "code": "R_AAOIFI_001",
+  "name": "DebtToAssetRatioLimit",
+  "applies_to": ["company", "contract"],
+  "rationale": "Flag when interest-bearing debt exceeds AAOIFI screening threshold (configurable).",
+  "params": {
+    "threshold": 0.30,
+    "threshold_unit": "fraction"
+  },
+  "severity": "HIGH",
+  "example_evaluation": "debt / total_assets > 0.30"
+}

@@ -1,0 +1,14 @@
+[
+  {
+    "rule_code": "BB_001",
+    "name": "Sector Screening",
+    "blacklist": [
+      "alcohol",
+      "gambling",
+      "conventional_banking",
+      "pornography"
+    ],
+    "severity": "CRITICAL",
+    "standard_reference": "Bangladesh Bank Islamic Banking Guidelines"
+  }
+]

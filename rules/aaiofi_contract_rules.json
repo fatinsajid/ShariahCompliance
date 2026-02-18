@@ -1,0 +1,17 @@
+[
+  {
+    "rule_code": "AAOIFI_M_001",
+    "contract_type": "MURABAHA",
+    "require_asset_ownership": true,
+    "require_profit_disclosure": true,
+    "severity": "CRITICAL",
+    "standard_reference": "AAOIFI Murabaha Standard"
+  },
+  {
+    "rule_code": "AAOIFI_D_001",
+    "contract_type": "MUDARABAH",
+    "min_profit_ratio": 0.1,
+    "severity": "HIGH",
+    "standard_reference": "AAOIFI Mudarabah Standard"
+  }
+]

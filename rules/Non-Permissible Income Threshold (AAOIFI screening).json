@@ -1,0 +1,13 @@
+{
+  "code": "R_AAOIFI_002",
+  "name": "NonHalalIncomePercentage",
+  "applies_to": ["company"],
+  "rationale": "Flag if non-permissible income exceeds AAOIFI threshold.",
+  "params": {
+    "threshold": 0.05,
+    "threshold_unit": "fraction",
+    "purification_required": true
+  },
+  "severity": "HIGH",
+  "example_evaluation": "non_halal_income / total_income > 0.05"
+}

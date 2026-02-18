@@ -1,0 +1,17 @@
+{
+    "debt_ratio_max": 0.30,
+    "non_halal_income_ratio_max": 0.05,
+    "liquidity_ratio_max": 0.30,
+    "prohibited_sectors": [
+        "Conventional Banking",
+        "Insurance",
+        "Alcohol",
+        "Pork",
+        "Gambling",
+        "Tobacco",
+        "Adult Entertainment",
+        "Weapons",
+        "Cinema",
+        "Music Industry"
+    ]
+}

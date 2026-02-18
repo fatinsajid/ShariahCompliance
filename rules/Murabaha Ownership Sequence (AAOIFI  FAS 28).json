@@ -1,0 +1,12 @@
+{
+  "code": "R_AAOIFI_003",
+  "name": "MurabahaOwnershipAndDisclosure",
+  "applies_to": ["contract"],
+  "rationale": "Ensure financier purchased asset and ownership transferred before sale; cost and profit disclosed.",
+  "params": {
+    "require_purchase_before_sale": true,
+    "require_disclosure": true
+  },
+  "severity": "CRITICAL",
+  "example_evaluation": "contract.purchase_date < contract.sale_date AND contract.disclosure=true"
+}

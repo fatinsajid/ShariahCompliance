@@ -1,0 +1,88 @@
+[
+    {
+        "entity": "C001",
+        "rule": "AAOIFI_C_001",
+        "value": 0.24,
+        "threshold": 0.3,
+        "violation": false,
+        "severity": "HIGH",
+        "standard": "AAOIFI Shariah Screening Methodology"
+    },
+    {
+        "entity": "C001",
+        "rule": "AAOIFI_C_002",
+        "value": 0.025,
+        "threshold": 0.05,
+        "violation": false,
+        "severity": "HIGH",
+        "standard": "AAOIFI Shariah Screening Methodology"
+    },
+    {
+        "entity": "C002",
+        "rule": "AAOIFI_C_001",
+        "value": 0.5333,
+        "threshold": 0.3,
+        "violation": true,
+        "severity": "HIGH",
+        "standard": "AAOIFI Shariah Screening Methodology"
+    },
+    {
+        "entity": "C002",
+        "rule": "AAOIFI_C_002",
+        "value": 0.125,
+        "threshold": 0.05,
+        "violation": true,
+        "severity": "HIGH",
+        "standard": "AAOIFI Shariah Screening Methodology"
+    },
+    {
+        "entity": "C003",
+        "rule": "AAOIFI_C_001",
+        "value": 0.2,
+        "threshold": 0.3,
+        "violation": false,
+        "severity": "HIGH",
+        "standard": "AAOIFI Shariah Screening Methodology"
+    },
+    {
+        "entity": "C003",
+        "rule": "AAOIFI_C_002",
+        "value": 0.02,
+        "threshold": 0.05,
+        "violation": false,
+        "severity": "HIGH",
+        "standard": "AAOIFI Shariah Screening Methodology"
+    },
+    {
+        "entity": "C004",
+        "rule": "AAOIFI_C_001",
+        "value": 0.3,
+        "threshold": 0.3,
+        "violation": false,
+        "severity": "HIGH",
+        "standard": "AAOIFI Shariah Screening Methodology"
+    },
+    {
+        "entity": "C004",
+        "rule": "AAOIFI_C_002",
+        "value": 0.025,
+        "threshold": 0.05,
+        "violation": false,
+        "severity": "HIGH",
+        "standard": "AAOIFI Shariah Screening Methodology"
+    },
+    {
+        "entity": "M001",
+        "rule": "AAOIFI_M_001",
+        "violation": false,
+        "severity": "CRITICAL",
+        "standard": "AAOIFI Murabaha Standard"
+    },
+    {
+        "entity": "D001",
+        "rule": "AAOIFI_D_001",
+        "violation": false,
+        "severity": "HIGH",
+        "standard": "AAOIFI Mudarabah Standard"
+    }
+]
