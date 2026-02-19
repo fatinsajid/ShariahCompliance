@@ -1,6 +1,6 @@
 {
   "model_version": "v1",
-  "trained_at": "2026-02-20T02:46:31.401241",
+  "trained_at": "2026-02-20T03:08:34.169791",
   "model_type": "RandomForestClassifier",
   "features": [
     "debt_ratio",
