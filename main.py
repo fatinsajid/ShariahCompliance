@@ -1,7 +1,9 @@
 import json
 import os
 from dal.db_connector import save_company, save_result, initialize_tables
-
+from services.compliance_engine import check_shariah_compliance
+from services.risk_engine import calculate_risk_score
+from services.anomaly_detector import detect_anomalies
 
 def load_thresholds():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -9,44 +11,35 @@ def load_thresholds():
     with open(path, "r") as f:
         return json.load(f)
 
-def evaluate_single_company(company, thresholds):
+
+def evaluate_single_company(company):
     try:
-        violations = []
+        thresholds = load_thresholds()
 
-        # Qualitative Screening
-        if company["sector"] in thresholds["prohibited_sectors"]:
-            violations.append("Prohibited business activity")
-
-        # Quantitative Screening
-        debt_ratio = company["total_debt"] / company["total_assets"]
-        non_halal_ratio = company["non_halal_income"] / company["total_income"]
-        liquidity_ratio = company["cash_and_interest_securities"] / company["total_assets"]
-
-        if debt_ratio > thresholds["debt_ratio_max"]:
-            violations.append("Debt ratio exceeds 30%")
-
-        if non_halal_ratio > thresholds["non_halal_income_ratio_max"]:
-            violations.append("Non-halal income exceeds 5%")
-
-        if liquidity_ratio > thresholds["liquidity_ratio_max"]:
-            violations.append("Liquidity ratio exceeds 30%")
-
-        status = "COMPLIANT" if not violations else "NON-COMPLIANT"
+        status, violations = check_shariah_compliance(company, thresholds)
 
         save_company(company)
         save_result(company["company_id"], status, violations)
+        status, violations = check_shariah_compliance(company, thresholds)
+
+        risk_result = calculate_risk_score(company)
+        anomaly_result = detect_anomalies(company)
 
         return {
             "status": "SUCCESS",
             "result": {
                 "company_id": company["company_id"],
                 "compliance_status": status,
-                "violations": violations
+                "violations": violations,
+                "risk_analysis": risk_result,
+                "anomaly_detection": anomaly_result
             }
         }
 
+
     except Exception as e:
         return {"status": "ERROR", "message": str(e)}
+
 
 if __name__ == "__main__":
     initialize_tables()
