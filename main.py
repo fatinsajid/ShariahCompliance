@@ -5,7 +5,15 @@ from dal.db_connector import save_company, save_result, initialize_tables
 from services.anomaly_detector import detect_anomalies
 from services.compliance_engine import check_shariah_compliance
 from services.risk_engine import calculate_risk_score
+from fastapi import FastAPI
+from models import train_model
 
+app = FastAPI()
+
+@app.get("/predict")
+def predict():
+    # load model & return dummy example
+    return {"status": "success", "message": "Prediction endpoint ready!"}
 
 
 

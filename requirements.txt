@@ -1,0 +1,9 @@
+pandas
+numpy
+scikit-learn
+joblib
+psycopg2-binary
+python-dotenv
+fastapi       # only if you want API later
+uvicorn       # only if you want API later
+supabase

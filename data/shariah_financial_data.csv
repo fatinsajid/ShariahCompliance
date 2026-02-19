@@ -1,0 +1,5 @@
+debt_ratio,liquidity_ratio,non_halal_income_ratio,other_financial_metric1,other_financial_metric2,compliance
+0.2,0.3,0.0,0.5,0.7,1
+0.5,0.2,0.05,0.6,0.8,0
+0.1,0.4,0.02,0.4,0.6,1
+0.4,0.1,0.01,0.7,0.5,1
