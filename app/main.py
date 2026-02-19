@@ -4,7 +4,38 @@ import subprocess
 import joblib
 import pandas as pd
 from fastapi import FastAPI, HTTPException
+from fastapi import Request, HTTPException
 from dal import db_connector
+from jose import jwt, JWTError
+
+
+# 2️⃣ FastAPI instance
+app = FastAPI(title="Shariah Compliance API")
+
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")  # From Render
+ALGORITHM = "HS256"  # Supabase default
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+
+async def supabase_auth_middleware(request: Request, call_next):
+    # Allow health check without auth
+    if request.url.path == "/health":
+        return await call_next(request)
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    token = auth_header.split(" ")[1]
+
+    try:
+        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=[ALGORITHM])
+        request.state.user = payload  # Attach user info to request
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    return await call_next(request)
+
+app.middleware("http")(supabase_auth_middleware)
 
 app = FastAPI(title="Shariah Compliance API", description="API for risk prediction & compliance check", version="1.0")
 
@@ -106,3 +137,14 @@ def compliance_check(company_id: str):
     db_connector.save_result(company_id, status, violations)
 
     return {"company_id": company_id, "status": status, "violations": violations}
+
+@app.get("/predict/{company_id}")
+def predict(company_id: str, request: Request):
+    user = request.state.user
+    # Optional: check role
+    if user.get("role") != "analyst":
+        return {"error": "Insufficient permissions"}
+
+    # Fetch company & predict risk as before
+    ...
+
