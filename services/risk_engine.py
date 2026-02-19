@@ -1,15 +1,18 @@
-import numpy as np
-
 def calculate_risk_score(company: dict) -> dict:
-    """
-    Simple rule-based risk scoring (can later be replaced with ML model)
-    """
 
-    debt_ratio = company["total_debt"] / company["total_assets"]
-    liquidity_ratio = company["cash_and_interest_securities"] / company["total_assets"]
-    non_halal_ratio = company["non_halal_income"] / company["total_income"]
+    total_assets = company.get("total_assets", 1)
+    total_income = company.get("total_income", 1)
 
-    # Weighted scoring logic
+    if total_assets == 0:
+        total_assets = 1
+
+    if total_income == 0:
+        total_income = 1
+
+    debt_ratio = company["total_debt"] / total_assets
+    liquidity_ratio = company["cash_and_interest_securities"] / total_assets
+    non_halal_ratio = company["non_halal_income"] / total_income
+
     risk_score = (
         debt_ratio * 40 +
         liquidity_ratio * 30 +

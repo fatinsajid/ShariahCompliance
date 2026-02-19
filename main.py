@@ -1,9 +1,13 @@
 import json
 import os
+
 from dal.db_connector import save_company, save_result, initialize_tables
+from services.anomaly_detector import detect_anomalies
 from services.compliance_engine import check_shariah_compliance
 from services.risk_engine import calculate_risk_score
-from services.anomaly_detector import detect_anomalies
+
+
+
 
 def load_thresholds():
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
