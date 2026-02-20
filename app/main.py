@@ -6,6 +6,7 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Request
 from dal import db_connector
 from jose import jwt, JWTError
+from app.gateway import api_gateway_middleware
 
 # ----------------------------
 # 1️⃣ FastAPI instance (ONLY ONCE)
@@ -15,7 +16,7 @@ app = FastAPI(
     description="API for risk prediction & compliance check",
     version="1.0"
 )
-
+app.middleware("http")(api_gateway_middleware)
 # ----------------------------
 # 2️⃣ Supabase Auth Config
 # ----------------------------
