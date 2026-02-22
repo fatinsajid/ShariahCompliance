@@ -1,117 +1,77 @@
-# app/main.py
 import os
-import subprocess
 import joblib
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Request
-from dal import db_connector
+from fastapi import FastAPI, Request, HTTPException
 from jose import jwt, JWTError
-from app.gateway import api_gateway_middleware
+from dal.db_connector import (
+    get_user_tenant,
+    fetch_companies,
+    save_company,
+    save_result,
+    populate_features
+)
+
+app = FastAPI(title="Shariah Compliance API v2")
 
 # ----------------------------
-# 1️⃣ FastAPI instance (ONLY ONCE)
-# ----------------------------
-app = FastAPI(
-    title="Shariah Compliance API",
-    description="API for risk prediction & compliance check",
-    version="1.0"
-)
-app.middleware("http")(api_gateway_middleware)
-# ----------------------------
-# 2️⃣ Supabase Auth Config
+# Environment
 # ----------------------------
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
-ALGORITHM = "HS256"
-
-# ----------------------------
-# 3️⃣ Auth Middleware
-# ----------------------------
-PUBLIC_PATHS = {"/", "/health", "/docs", "/openapi.json", "/redoc"}
-
-async def supabase_auth_middleware(request: Request, call_next):
-    if request.url.path in PUBLIC_PATHS:
-        return await call_next(request)
-
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing Authorization header")
-
-    token = auth_header.split(" ")[1]
-
-    try:
-        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=[ALGORITHM])
-        request.state.user = payload
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
-    return await call_next(request)
-
-app.middleware("http")(supabase_auth_middleware)
-
-# ----------------------------
-# 4️⃣ Paths
-# ----------------------------
+ALGORITHM = "HS256"  # default Supabase
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "risk_model_v1.pkl")
-TRAIN_SCRIPT = os.path.join(PROJECT_ROOT, "models", "train_model.py")
 
 # ----------------------------
-# 5️⃣ Ensure model exists
-# ----------------------------
-if not os.path.exists(MODEL_PATH):
-    print("⚠️ Model not found. Training now...")
-    subprocess.run(["python", TRAIN_SCRIPT], check=True)
-    print("✅ Model trained.")
-
-# ----------------------------
-# 6️⃣ Load model
+# Load ML Model
 # ----------------------------
 try:
     model = joblib.load(MODEL_PATH)
     print("✅ Model loaded successfully.")
 except Exception as e:
-    print(f"❌ Failed to load model: {e}")
     model = None
+    print(f"❌ Model failed to load: {e}")
 
 # ----------------------------
-# 7️⃣ Root
+# Middleware: Supabase JWT Auth
 # ----------------------------
-@app.get("/")
-def root():
-    return {
-        "message": "Shariah Compliance API running",
-        "endpoints": [
-            "/health",
-            "/predict/{company_id}",
-            "/compliance/{company_id}"
-        ]
-    }
+@app.middleware("http")
+async def supabase_auth_middleware(request: Request, call_next):
+    if request.url.path in ["/health"]:
+        return await call_next(request)
+
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=[ALGORITHM])
+        request.state.user = payload
+        # Dynamic tenant_id from Supabase user
+        request.state.tenant_id = get_user_tenant(payload["sub"])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return await call_next(request)
 
 # ----------------------------
-# 8️⃣ Health
+# Health Check
 # ----------------------------
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 # ----------------------------
-# 9️⃣ Predict Risk (AUTH REQUIRED)
+# Predict Risk
 # ----------------------------
 @app.get("/predict/{company_id}")
 def predict(company_id: str, request: Request):
-    if model is None:
-        raise HTTPException(status_code=500, detail="Model not loaded")
+    tenant_id = request.state.tenant_id
+    companies = fetch_companies(tenant_id)
+    company = next((c for c in companies if c["company_id"] == company_id), None)
+    if not company:
+        raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
 
-    user = getattr(request.state, "user", {})
-    # Optional role check
-    # if user.get("role") != "analyst":
-    #     raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    try:
-        company = db_connector.fetch_company_data(company_id)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
+    # Prepare features
     X = pd.DataFrame([{
         "total_assets": company["total_assets"],
         "total_debt": company["total_debt"],
@@ -119,6 +79,9 @@ def predict(company_id: str, request: Request):
         "non_halal_income": company["non_halal_income"],
         "cash_and_interest_securities": company["cash_and_interest_securities"]
     }])
+
+    if model is None:
+        raise HTTPException(status_code=500, detail="ML model not loaded")
 
     try:
         if hasattr(model, "predict_proba"):
@@ -129,35 +92,29 @@ def predict(company_id: str, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    return {
-        "company_id": company_id,
-        "risk_score": float(risk_score)
-    }
+    return {"company_id": company_id, "risk_score": float(risk_score)}
 
 # ----------------------------
-# 🔟 Compliance Check (AUTH REQUIRED)
+# Compliance Check
 # ----------------------------
 @app.get("/compliance/{company_id}")
-def compliance_check(company_id: str, request: Request):
-    try:
-        company = db_connector.fetch_company_data(company_id)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
+def compliance(company_id: str, request: Request):
+    tenant_id = request.state.tenant_id
+    companies = fetch_companies(tenant_id)
+    company = next((c for c in companies if c["company_id"] == company_id), None)
+    if not company:
+        raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
 
-    violations = []
+    # Run compliance check (using your services)
+    from services.compliance_engine import check_shariah_compliance
+    from config.shariah_thresholds import THRESHOLDS
+    status, violations = check_shariah_compliance(company, THRESHOLDS)
 
-    if company["non_halal_income"] / max(company["total_income"], 1) > 0.05:
-        violations.append("Non-halal income > 5%")
+    # Save results
+    save_company(company, tenant_id)
+    save_result(company_id, tenant_id, status, violations)
 
-    if company["cash_and_interest_securities"] / max(company["total_assets"], 1) > 0.1:
-        violations.append("High interest-bearing assets")
+    # Update ML features
+    populate_features(tenant_id)
 
-    status = "Non-Compliant" if violations else "Compliant"
-
-    db_connector.save_result(company_id, status, violations)
-
-    return {
-        "company_id": company_id,
-        "status": status,
-        "violations": violations
-    }
+    return {"company_id": company_id, "status": status, "violations": violations}

@@ -1,6 +1,6 @@
 import os
 import json
-from main import evaluate_single_company, load_thresholds
+from bootstrap import evaluate_single_company, load_thresholds
 
 thresholds = load_thresholds()
 

@@ -1,0 +1,14 @@
+{
+  "model_version": "v1",
+  "trained_at": "2026-02-23T01:34:39.915414",
+  "model_type": "RandomForestClassifier",
+  "features": [
+    "debt_ratio",
+    "liquidity_ratio",
+    "non_halal_income_ratio",
+    "other_financial_metric1",
+    "other_financial_metric2"
+  ],
+  "training_rows": 4,
+  "tenant_id": "00000000-0000-0000-0000-000000000001"
+}
