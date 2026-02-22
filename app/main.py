@@ -12,8 +12,11 @@ from dal.db_connector import (
     populate_features
 )
 
-app = FastAPI(title="Shariah Compliance API v2")
-
+app = FastAPI(
+    title="Shariah Compliance API v2",
+    description="API for risk prediction & compliance check",
+    version="1.0"
+)
 # ----------------------------
 # Environment
 # ----------------------------
