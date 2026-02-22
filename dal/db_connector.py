@@ -8,7 +8,12 @@ import psycopg2
 from psycopg2.pool import SimpleConnectionPool
 from psycopg2.extras import execute_batch
 from dotenv import load_dotenv
+from config.db_config import DB_CONFIG
 
+def get_connection():
+    if "database_url" not in DB_CONFIG or not DB_CONFIG["database_url"]:
+        raise RuntimeError("DATABASE_URL is not set")
+    return psycopg2.connect(DB_CONFIG["database_url"])
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
@@ -345,3 +350,17 @@ def ensure_user_tenant(user_id: str, tenant_id: str, role: str = "admin"):
             ON CONFLICT (user_id, tenant_id) DO NOTHING;
         """, (user_id, tenant_id, role))
     logger.info(f"✅ User {user_id} assigned to tenant {tenant_id}")
+
+def fetch_all_tenants():
+    """
+    Fetch all tenant IDs from the database.
+    Assumes a 'tenants' table exists or tenant IDs are stored in companies.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    # Example: get distinct tenant_id from companies table
+    cursor.execute("SELECT DISTINCT tenant_id FROM companies;")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return [r[0] for r in rows]
