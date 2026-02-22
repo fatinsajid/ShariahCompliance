@@ -1,8 +1,8 @@
 import os
 import joblib
 import pandas as pd
-from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
 from dal.db_connector import (
     get_user_tenant,
@@ -12,48 +12,43 @@ from dal.db_connector import (
     populate_features
 )
 
+# ----------------------------
+# 1️⃣ FastAPI instance
+# ----------------------------
 app = FastAPI(
     title="Shariah Compliance API v2",
     description="API for risk prediction & compliance check",
     version="1.0"
 )
+
 # ----------------------------
-# Environment
+# 2️⃣ Environment & Model
 # ----------------------------
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
-ALGORITHM = "HS256"  # default Supabase
+ALGORITHM = "HS256"
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "risk_model_v1.pkl")
 
-# ----------------------------
-# Load ML Model
-# ----------------------------
+# Load model safely
 try:
     model = joblib.load(MODEL_PATH)
-    print("✅ Model loaded successfully.")
+    print("✅ ML model loaded successfully")
 except Exception as e:
     model = None
-    print(f"❌ Model failed to load: {e}")
+    print(f"❌ ML model failed to load: {e}")
 
 # ----------------------------
-# Middleware: Supabase JWT Auth
+# 3️⃣ Middleware: Supabase JWT Auth
 # ----------------------------
-from fastapi.responses import JSONResponse  # ADD THIS IMPORT AT TOP
-
-
 @app.middleware("http")
 async def supabase_auth_middleware(request: Request, call_next):
-    # allow public endpoints
+    # Public endpoints
     if request.url.path in ["/health", "/", "/docs", "/openapi.json"]:
         return await call_next(request)
 
     auth_header = request.headers.get("Authorization")
-
     if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Missing or invalid Authorization header"},
-        )
+        return JSONResponse(status_code=401, content={"detail": "Missing or invalid Authorization header"})
 
     token = auth_header.split(" ")[1]
 
@@ -62,37 +57,49 @@ async def supabase_auth_middleware(request: Request, call_next):
             token,
             SUPABASE_JWT_SECRET,
             algorithms=[ALGORITHM],
-            audience="authenticated",  # ✅ important for Supabase
+            audience="authenticated"  # required for Supabase JWT
         )
-
         request.state.user = payload
         request.state.tenant_id = get_user_tenant(payload["sub"])
-
     except JWTError:
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Invalid or expired token"},
-        )
+        return JSONResponse(status_code=401, content={"detail": "Invalid or expired token"})
 
     return await call_next(request)
+
 # ----------------------------
-# Health Check
+# 4️⃣ Health Check
 # ----------------------------
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 # ----------------------------
-# Predict Risk
+# 5️⃣ Root
+# ----------------------------
+@app.get("/")
+def root():
+    return {
+        "message": "Shariah Compliance API is running",
+        "endpoints": ["/health", "/predict/{company_id}", "/compliance/{company_id}"]
+    }
+
+# ----------------------------
+# 6️⃣ Predict Risk
 # ----------------------------
 @app.get("/predict/{company_id}")
 def predict(company_id: str, request: Request):
-    tenant_id = request.state.tenant_id
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if tenant_id is None:
+        raise HTTPException(status_code=401, detail="Tenant not found in request state")
+
     companies = fetch_companies(tenant_id)
     company = next((c for c in companies if c["company_id"] == company_id), None)
     if not company:
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
-    tenant_id = request.state.tenant_id
+
+    if model is None:
+        raise HTTPException(status_code=500, detail="ML model not loaded")
+
     # Prepare features
     X = pd.DataFrame([{
         "total_assets": company["total_assets"],
@@ -102,9 +109,6 @@ def predict(company_id: str, request: Request):
         "cash_and_interest_securities": company["cash_and_interest_securities"]
     }])
 
-    if model is None:
-        raise HTTPException(status_code=500, detail="ML model not loaded")
-
     try:
         if hasattr(model, "predict_proba"):
             probs = model.predict_proba(X)
@@ -112,22 +116,25 @@ def predict(company_id: str, request: Request):
         else:
             risk_score = model.predict(X)[0]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
 
     return {"company_id": company_id, "risk_score": float(risk_score)}
 
 # ----------------------------
-# Compliance Check
+# 7️⃣ Compliance Check
 # ----------------------------
 @app.get("/compliance/{company_id}")
 def compliance(company_id: str, request: Request):
-    tenant_id = request.state.tenant_id
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if tenant_id is None:
+        raise HTTPException(status_code=401, detail="Tenant not found in request state")
+
     companies = fetch_companies(tenant_id)
     company = next((c for c in companies if c["company_id"] == company_id), None)
     if not company:
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
 
-    # Run compliance check (using your services)
+    # Run compliance check
     from services.compliance_engine import check_shariah_compliance
     from config.shariah_thresholds import THRESHOLDS
     status, violations = check_shariah_compliance(company, THRESHOLDS)
@@ -136,7 +143,7 @@ def compliance(company_id: str, request: Request):
     save_company(company, tenant_id)
     save_result(company_id, tenant_id, status, violations)
 
-    # Update ML features
+    # Populate ML features
     populate_features(tenant_id)
 
     return {"company_id": company_id, "status": status, "violations": violations}
