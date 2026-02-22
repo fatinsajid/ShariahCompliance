@@ -8,3 +8,4 @@ fastapi       # only if you want API later
 uvicorn       # only if you want API later
 supabase
 pydantic
+python-jose
