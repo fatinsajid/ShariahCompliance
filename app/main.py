@@ -1,6 +1,7 @@
 import os
 import joblib
 import pandas as pd
+from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, HTTPException
 from jose import jwt, JWTError
 from dal.db_connector import (
@@ -34,25 +35,43 @@ except Exception as e:
 # ----------------------------
 # Middleware: Supabase JWT Auth
 # ----------------------------
+from fastapi.responses import JSONResponse  # ADD THIS IMPORT AT TOP
+
+
 @app.middleware("http")
 async def supabase_auth_middleware(request: Request, call_next):
-    if request.url.path in ["/health"]:
+    # allow public endpoints
+    if request.url.path in ["/health", "/", "/docs", "/openapi.json"]:
         return await call_next(request)
 
     auth_header = request.headers.get("Authorization")
+
     if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Missing or invalid Authorization header"},
+        )
 
     token = auth_header.split(" ")[1]
-    try:
-        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=[ALGORITHM])
-        request.state.user = payload
-        # Dynamic tenant_id from Supabase user
-        request.state.tenant_id = get_user_tenant(payload["sub"])
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    return await call_next(request)
 
+    try:
+        payload = jwt.decode(
+            token,
+            SUPABASE_JWT_SECRET,
+            algorithms=[ALGORITHM],
+            audience="authenticated",  # ✅ important for Supabase
+        )
+
+        request.state.user = payload
+        request.state.tenant_id = get_user_tenant(payload["sub"])
+
+    except JWTError:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Invalid or expired token"},
+        )
+
+    return await call_next(request)
 # ----------------------------
 # Health Check
 # ----------------------------
@@ -70,7 +89,7 @@ def predict(company_id: str, request: Request):
     company = next((c for c in companies if c["company_id"] == company_id), None)
     if not company:
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
-
+    tenant_id = request.state.tenant_id
     # Prepare features
     X = pd.DataFrame([{
         "total_assets": company["total_assets"],
