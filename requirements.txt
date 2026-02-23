@@ -10,3 +10,4 @@ supabase
 pydantic
 python-jose
 boto3
+jsonschema>=4.0.0

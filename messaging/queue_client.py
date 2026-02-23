@@ -2,6 +2,7 @@ import os
 import json
 import redis
 from dotenv import load_dotenv
+from schema_registry.validator import validate_event
 
 load_dotenv()
 
@@ -12,12 +13,17 @@ STREAM_NAME = os.getenv("QUEUE_STREAM_NAME", "shariah-events")
 redis_client = redis.Redis.from_url(REDIS_URL, decode_responses=True)
 
 
-def publish_event(event_type: str, payload: dict):
+def publish_event(event_type: str, payload: dict, version: str = "v1"):
     """
-    Publish event to Redis Stream
+    Publish event to Redis Stream with schema validation
     """
+
+    # ✅ validate BEFORE publishing
+    validate_event(event_type, payload, version)
+
     message = {
         "event_type": event_type,
+        "schema_version": version,
         "payload": json.dumps(payload)
     }
 
