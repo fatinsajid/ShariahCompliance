@@ -4,6 +4,7 @@ import pandas as pd
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
+
 from dal.db_connector import (
     get_user_tenant,
     fetch_companies,
@@ -11,6 +12,8 @@ from dal.db_connector import (
     save_result,
     populate_features
 )
+
+from messaging.queue_client import publish_event
 
 # ----------------------------
 # 1️⃣ FastAPI instance
@@ -26,6 +29,7 @@ app = FastAPI(
 # ----------------------------
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET")
 ALGORITHM = "HS256"
+
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "risk_model_v1.pkl")
 
@@ -48,7 +52,10 @@ async def supabase_auth_middleware(request: Request, call_next):
 
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"detail": "Missing or invalid Authorization header"})
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Missing or invalid Authorization header"}
+        )
 
     token = auth_header.split(" ")[1]
 
@@ -57,12 +64,17 @@ async def supabase_auth_middleware(request: Request, call_next):
             token,
             SUPABASE_JWT_SECRET,
             algorithms=[ALGORITHM],
-            audience="authenticated"  # required for Supabase JWT
+            audience="authenticated"  # required for Supabase
         )
+
         request.state.user = payload
         request.state.tenant_id = get_user_tenant(payload["sub"])
+
     except JWTError:
-        return JSONResponse(status_code=401, content={"detail": "Invalid or expired token"})
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Invalid or expired token"}
+        )
 
     return await call_next(request)
 
@@ -100,7 +112,6 @@ def predict(company_id: str, request: Request):
     if model is None:
         raise HTTPException(status_code=500, detail="ML model not loaded")
 
-    # Prepare features
     X = pd.DataFrame([{
         "total_assets": company["total_assets"],
         "total_debt": company["total_debt"],
@@ -137,6 +148,7 @@ def compliance(company_id: str, request: Request):
     # Run compliance check
     from services.compliance_engine import check_shariah_compliance
     from config.shariah_thresholds import THRESHOLDS
+
     status, violations = check_shariah_compliance(company, THRESHOLDS)
 
     # Save results
@@ -146,4 +158,19 @@ def compliance(company_id: str, request: Request):
     # Populate ML features
     populate_features(tenant_id)
 
-    return {"company_id": company_id, "status": status, "violations": violations}
+    # 🚀 Publish event to message queue (CORRECT PLACE)
+    publish_event(
+        "compliance_check",
+        {
+            "tenant_id": tenant_id,
+            "company_id": company_id,
+            "status": status,
+            "violations": violations
+        }
+    )
+
+    return {
+        "company_id": company_id,
+        "status": status,
+        "violations": violations
+    }

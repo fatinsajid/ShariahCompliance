@@ -9,3 +9,4 @@ uvicorn       # only if you want API later
 supabase
 pydantic
 python-jose
+boto3

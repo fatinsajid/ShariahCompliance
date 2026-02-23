@@ -1,7 +1,7 @@
 import os
 import logging
 from contextlib import contextmanager
-from typing import List, Dict, Iterable
+from typing import List, Dict, Iterable, Any
 import uuid
 
 import psycopg2
@@ -9,6 +9,66 @@ from psycopg2.pool import SimpleConnectionPool
 from psycopg2.extras import execute_batch
 from dotenv import load_dotenv
 from config.db_config import DB_CONFIG
+from sqlalchemy import text
+import logging
+
+logger = logging.getLogger(__name__)
+
+def insert_compliance_record(payload: Dict[str, Any]) -> None:
+    """
+    Insert compliance result (async worker safe)
+    Expected payload:
+    {
+        tenant_id,
+        company_id,
+        status,
+        risk_score,
+        details
+    }
+    """
+    session = get_db_session()
+
+    try:
+        query = text("""
+            INSERT INTO compliance_results (
+                tenant_id,
+                company_id,
+                status,
+                risk_score,
+                details,
+                created_at
+            )
+            VALUES (
+                :tenant_id,
+                :company_id,
+                :status,
+                :risk_score,
+                :details,
+                NOW()
+            )
+        """)
+
+        session.execute(query, payload)
+        session.commit()
+
+        logger.info(
+            f"✅ Compliance inserted: tenant={payload.get('tenant_id')} "
+            f"company={payload.get('company_id')}"
+        )
+
+    except Exception as e:
+        session.rollback()
+        logger.error(f"❌ Insert compliance failed: {e}")
+        raise
+
+    finally:
+        session.close()
+
+
+def get_db_session():
+    pass
+
+
 
 def get_connection():
     if "database_url" not in DB_CONFIG or not DB_CONFIG["database_url"]:
