@@ -12,8 +12,7 @@ from dal.db_connector import (
     save_result,
     populate_features
 )
-
-from messaging.queue_client import publish_event
+from services.event_publisher import publish_compliance_events
 
 # ----------------------------
 # 1️⃣ FastAPI instance
@@ -143,42 +142,102 @@ def predict(company_id: str, request: Request):
 # ----------------------------
 @app.get("/compliance/{company_id}")
 def compliance(company_id: str, request: Request):
-    require_role(request, ["admin"])
-    tenant_id = getattr(request.state, "tenant_id", None)
-    if tenant_id is None:
-        raise HTTPException(status_code=401, detail="Tenant not found in request state")
+    tenant_id = request.state.tenant_id
 
+    # Fetch companies for this tenant
     companies = fetch_companies(tenant_id)
     company = next((c for c in companies if c["company_id"] == company_id), None)
     if not company:
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
 
-    # Run compliance check
-    from services.compliance_engine import check_shariah_compliance
-    from config.shariah_thresholds import THRESHOLDS
-
+    # ----------------------------
+    # Run compliance check using JSON thresholds
+    # ----------------------------
+    from services.shariah_governance import check_shariah_compliance
     status, violations = check_shariah_compliance(company, THRESHOLDS)
 
-    # Save results
+    # ----------------------------
+    # Save results to DB
+    # ----------------------------
     save_company(company, tenant_id)
     save_result(company_id, tenant_id, status, violations)
 
-    # Populate ML features
+    # ----------------------------
+    # Update ML features
+    # ----------------------------
     populate_features(tenant_id)
 
-    # 🚀 Publish event to message queue (CORRECT PLACE)
-    publish_event(
-        "compliance_check",
-        {
-            "tenant_id": tenant_id,
-            "company_id": company_id,
-            "status": status,
-            "violations": violations
-        }
-    )
+    # ----------------------------
+    # Optional: attach mocked scholar reviews
+    # ----------------------------
+    from services.shariah_governance import fetch_scholar_reviews
+    reviews = fetch_scholar_reviews(company_id, tenant_id)
 
     return {
         "company_id": company_id,
         "status": status,
-        "violations": violations
+        "violations": violations,
+        "scholar_reviews": reviews
     }
+# ----------------------------
+# Scholar Review: Approve/Reject
+# ----------------------------
+@app.post("/scholar/review/{review_id}")
+def review_compliance(review_id: str, request: Request, decision: str, comments: str = ""):
+    user = request.state.user
+    tenant_id = request.state.tenant_id
+
+    # Check role
+    if user.get("role") != "scholar":
+        raise HTTPException(403, "Insufficient permissions")
+
+    # Update review
+    from dal.db_connector import update_scholar_review
+    update_scholar_review(review_id, decision, comments)
+
+    return {"review_id": review_id, "status": decision, "comments": comments}
+
+
+# ----------------------------
+# Fetch Audit Log
+# ----------------------------
+@app.get("/audit/compliance/{company_id}")
+def audit_log(company_id: str, request: Request):
+    tenant_id = request.state.tenant_id
+    from dal.db_connector import fetch_scholar_reviews, fetch_result_by_company
+
+    compliance_result = fetch_result_by_company(company_id, tenant_id)
+    reviews = fetch_scholar_reviews(company_id, tenant_id)
+
+    return {
+        "company_id": company_id,
+        "compliance_result": compliance_result,
+        "scholar_reviews": reviews
+    }
+
+@app.post("/assign_review/{company_id}")
+def assign_review(company_id: str, request: Request):
+    tenant_id = request.state.tenant_id
+    compliance_result_id = 123  # get from your DB logic
+    scholar_id = "scholar-1"    # pick a scholar dynamically or from request
+
+    review_id = assign_scholar_review(tenant_id, company_id, compliance_result_id, scholar_id)
+    return {"review_id": review_id}
+# ----------------------------
+# Publish Events (API Gateway trigger)
+# ----------------------------
+@app.post("/events/publish")
+def publish_events(request: Request):
+    tenant_id = request.state.tenant_id
+
+    try:
+        count = publish_compliance_events(tenant_id)
+
+        return {
+            "message": "Events published successfully",
+            "tenant_id": tenant_id,
+            "events_published": count
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

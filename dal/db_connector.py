@@ -456,3 +456,106 @@ def get_user_tenant(user_id: str) -> dict:
             "tenant_id": str(row[0]),
             "role": row[1] or "analyst"
         }
+# ---------------------------------------------------
+# Scholar Reviews
+# ---------------------------------------------------
+def create_scholar_review(tenant_id, company_id, compliance_result_id, scholar_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO scholar_reviews (tenant_id, company_id, compliance_result_id, scholar_id)
+        VALUES (%s,%s,%s,%s)
+        RETURNING id
+    """, (tenant_id, company_id, compliance_result_id, scholar_id))
+    review_id = cur.fetchone()[0]
+    conn.commit()
+    cur.close()
+    conn.close()
+    return review_id
+
+def update_scholar_review(review_id, status, comments):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        UPDATE scholar_reviews
+        SET status=%s, comments=%s, reviewed_at=NOW()
+        WHERE id=%s
+    """, (status, comments, review_id))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def fetch_scholar_reviews(company_id, tenant_id):
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, company_id, compliance_result_id, scholar_id, status, comments, reviewed_at
+        FROM scholar_reviews
+        WHERE company_id=%s AND tenant_id=%s
+    """, (company_id, tenant_id))
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    return [
+        {
+            "id": r[0],
+            "company_id": r[1],
+            "compliance_result_id": r[2],
+            "scholar_id": r[3],
+            "status": r[4],
+            "comments": r[5],
+            "reviewed_at": r[6]
+        } for r in rows
+    ]
+# ----------------------------
+# Fatwa Table Access
+# ----------------------------
+def fetch_fatwa_by_id(fatwa_id: str, tenant_id: str):
+    """
+    Fetch a fatwa record for a tenant
+    """
+    with get_cursor() as cur:
+        cur.execute("""
+            SELECT fatwa_id, title, description
+            FROM fatwas
+            WHERE fatwa_id = %s AND tenant_id = %s
+        """, (fatwa_id, tenant_id))
+        row = cur.fetchone()
+        if row:
+            return {"fatwa_id": row[0], "title": row[1], "description": row[2]}
+        return None
+
+def create_scholar_review(tenant_id: str, company_id: str, compliance_result_id: int, scholar_id: str):
+    """
+    Create a new scholar review
+    """
+    with get_cursor() as cur:
+        cur.execute("""
+            INSERT INTO scholar_reviews (tenant_id, company_id, compliance_result_id, scholar_id, status)
+            VALUES (%s, %s, %s, %s, 'pending') RETURNING review_id
+        """, (tenant_id, company_id, compliance_result_id, scholar_id))
+        row = cur.fetchone()
+        return row[0] if row else None
+
+def fetch_scholar_reviews(company_id: str, tenant_id: str):
+    """
+    Get all scholar reviews for a company
+    """
+    with get_cursor() as cur:
+        cur.execute("""
+            SELECT review_id, scholar_id, compliance_result_id, violation_code, status, created_at
+            FROM scholar_reviews
+            WHERE company_id = %s AND tenant_id = %s
+        """, (company_id, tenant_id))
+        rows = cur.fetchall()
+        return [
+            {
+                "review_id": r[0],
+                "scholar_id": r[1],
+                "compliance_result_id": r[2],
+                "violation_code": r[3],
+                "status": r[4],
+                "created_at": r[5]
+            }
+            for r in rows
+        ]
