@@ -424,3 +424,35 @@ def fetch_all_tenants():
     cursor.close()
     conn.close()
     return [r[0] for r in rows]
+# ---------------------------------------------------
+# 🔐 Get User Tenant + Role (Supabase profiles)
+# ---------------------------------------------------
+def get_user_tenant(user_id: str) -> dict:
+    """
+    Fetch tenant_id and role for a Supabase user.
+
+    Args:
+        user_id (str): Supabase auth.users.id (UUID)
+
+    Returns:
+        dict: { tenant_id: str, role: str }
+    """
+    with get_cursor() as cur:
+        cur.execute(
+            """
+            SELECT tenant_id, role
+            FROM profiles
+            WHERE id = %s
+            """,
+            (user_id,)
+        )
+
+        row = cur.fetchone()
+
+        if not row:
+            raise Exception(f"No profile found for user {user_id}")
+
+        return {
+            "tenant_id": str(row[0]),
+            "role": row[1] or "analyst"
+        }

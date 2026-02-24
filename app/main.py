@@ -33,6 +33,10 @@ ALGORITHM = "HS256"
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "risk_model_v1.pkl")
 
+def require_role(request: Request, allowed_roles: list):
+    user_role = getattr(request.state, "role", None)
+    if user_role not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
 # Load model safely
 try:
     model = joblib.load(MODEL_PATH)
@@ -67,8 +71,10 @@ async def supabase_auth_middleware(request: Request, call_next):
             audience="authenticated"  # required for Supabase
         )
 
-        request.state.user = payload
-        request.state.tenant_id = get_user_tenant(payload["sub"])
+        tenant_info = get_user_tenant(payload["sub"])
+
+        request.state.tenant_id = tenant_info["tenant_id"]
+        request.state.role = tenant_info["role"]
 
     except JWTError:
         return JSONResponse(
@@ -100,6 +106,7 @@ def root():
 # ----------------------------
 @app.get("/predict/{company_id}")
 def predict(company_id: str, request: Request):
+    require_role(request, ["analyst", "admin"])
     tenant_id = getattr(request.state, "tenant_id", None)
     if tenant_id is None:
         raise HTTPException(status_code=401, detail="Tenant not found in request state")
@@ -136,6 +143,7 @@ def predict(company_id: str, request: Request):
 # ----------------------------
 @app.get("/compliance/{company_id}")
 def compliance(company_id: str, request: Request):
+    require_role(request, ["admin"])
     tenant_id = getattr(request.state, "tenant_id", None)
     if tenant_id is None:
         raise HTTPException(status_code=401, detail="Tenant not found in request state")
