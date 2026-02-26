@@ -13,7 +13,10 @@ from dal.db_connector import (
     populate_features
 )
 from services.event_publisher import publish_compliance_events
-
+from services.shariah_governance import (
+    get_active_fatwa,
+    log_compliance_decision,
+)
 # ----------------------------
 # 1️⃣ FastAPI instance
 # ----------------------------
@@ -154,8 +157,31 @@ def compliance(company_id: str, request: Request):
     # Run compliance check using JSON thresholds
     # ----------------------------
     from services.shariah_governance import check_shariah_compliance
+    # ----------------------------
+    # Run compliance check
+    # ----------------------------
     status, violations = check_shariah_compliance(company, THRESHOLDS)
 
+    # ----------------------------
+    # Governance binding (NEW)
+    # ----------------------------
+    rule_code = "SHARIAH_SCREENING"  # thesis-safe default
+
+    fatwa = get_active_fatwa(rule_code, tenant_id)
+
+    if fatwa:
+        fatwa_id, fatwa_version, ruling = fatwa
+
+        # write audit trail
+        log_compliance_decision(
+            tenant_id=tenant_id,
+            company_id=company_id,
+            rule_code=rule_code,
+            fatwa_version=fatwa_version,
+            status=status,
+        )
+    else:
+        print(f"⚠️ No active fatwa for rule {rule_code}")
     # ----------------------------
     # Save results to DB
     # ----------------------------
