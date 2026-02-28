@@ -559,3 +559,9 @@ def fetch_scholar_reviews(company_id: str, tenant_id: str):
             }
             for r in rows
         ]
+def insert_audit_log(record: dict):
+    """
+    Insert audit log into database.
+    """
+    # your Supabase insert here
+    pass

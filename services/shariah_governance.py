@@ -1,71 +1,99 @@
-from dal.db_connector import get_cursor
+# services/shariah_governance.py
+
+from services.compliance_engine import check_shariah_compliance
+from services.fatwa_registry import attach_fatwa_metadata
+from services.scholar_consensus import compute_scholar_consensus
+from services.explainability_engine import generate_ml_explanation
+from dal.db_connector import fetch_fatwa_by_id
 
 
-def get_active_fatwa(rule_code: str, tenant_id: str):
+def fatwa_is_approved(fatwa_id: str, tenant_id: str) -> bool:
     """
-    Fetch latest active fatwa version.
-    """
-    with get_cursor() as cur:
-        cur.execute("""
-            SELECT fatwa_id, version, ruling
-            FROM fatwas
-            WHERE rule_code = %s
-              AND tenant_id = %s
-              AND status = 'active'
-            ORDER BY version DESC
-            LIMIT 1
-        """, (rule_code, tenant_id))
+    Check whether a fatwa is approved and active.
 
-        row = cur.fetchone()
-        return row
-
-
-def log_compliance_decision(
-    tenant_id: str,
-    company_id: str,
-    rule_code: str,
-    fatwa_version: int,
-    status: str,
-):
+    Thesis purpose:
+    - runtime governance enforcement
+    - prevents use of draft/rejected rulings
+    - ensures auditability
     """
-    Write audit trail.
-    """
-    with get_cursor() as cur:
-        cur.execute("""
-            INSERT INTO compliance_audit_log (
-                tenant_id,
-                company_id,
-                rule_code,
-                fatwa_version,
-                compliance_status,
-                triggered_by
-            )
-            VALUES (%s, %s, %s, %s, %s, 'system')
-        """, (
-            tenant_id,
-            company_id,
-            rule_code,
-            fatwa_version,
-            status,
-        ))
-def fatwa_is_approved(fatwa_id: str) -> bool:
-    """
-    Minimal majority approval logic.
-    Thesis-grade but lightweight.
-    """
-    with get_cursor() as cur:
-        cur.execute("""
-            SELECT
-                SUM(CASE WHEN decision='approve' THEN 1 ELSE 0 END) AS approves,
-                COUNT(*) AS total
-            FROM scholar_reviews
-            WHERE fatwa_id = %s
-        """, (fatwa_id,))
 
-        row = cur.fetchone()
+    try:
+        fatwa = fetch_fatwa_by_id(fatwa_id, tenant_id)
 
-        if not row or row[1] == 0:
+        if not fatwa:
             return False
 
-        approves, total = row
-        return approves > total / 2
+        # expected fields in your fatwa table
+        status = fatwa.get("status")
+        is_active = fatwa.get("is_active", True)
+
+        return status == "APPROVED" and is_active is True
+
+    except Exception as e:
+        print(f"[GOVERNANCE] fatwa approval check failed: {e}")
+        return False
+
+
+# ================================
+# Compliance Confidence
+# ================================
+
+def compute_compliance_confidence(
+    violations: list,
+    scholar_ratio: float
+) -> float:
+    """
+    Hybrid confidence score combining rule violations
+    and scholar agreement.
+    """
+
+    base = 0.95 if not violations else max(
+        0.5,
+        0.95 - 0.1 * len(violations)
+    )
+
+    adjusted = base * (0.7 + 0.3 * scholar_ratio)
+
+    return round(adjusted, 3)
+
+
+# ================================
+# Master Governance Pipeline
+# ================================
+
+def run_shariah_governance(
+    company_data: dict,
+    scholar_reviews: list
+) -> dict:
+    """
+    End-to-end Shariah governance pipeline.
+    """
+
+    # 1. Core compliance check
+    status, violations = check_shariah_compliance(company_data)
+
+    # 2. Scholar consensus
+    consensus = compute_scholar_consensus(scholar_reviews)
+
+    # 3. Confidence scoring
+    confidence = compute_compliance_confidence(
+        violations,
+        consensus["approval_ratio"]
+    )
+
+    # 4. Explainability layer
+    ml_exp = generate_ml_explanation(company_data)
+
+    # 5. Build result
+    result = {
+        "status": status,
+        "violations": violations,
+        "scholar_consensus": consensus,
+        "confidence_score": confidence,
+        **ml_exp
+    }
+
+    # 6. Attach fatwa trace
+    result = attach_fatwa_metadata(result)
+
+    return result

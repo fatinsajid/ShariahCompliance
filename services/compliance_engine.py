@@ -1,3 +1,4 @@
+from services.shariah_rules import SHARIAH_RULES
 def check_shariah_compliance(company, thresholds):
     violations = []
 

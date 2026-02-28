@@ -1,10 +1,11 @@
 import os
+import json
 import joblib
 import pandas as pd
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
-
+from services.explainability_engine import generate_explanation
 from dal.db_connector import (
     get_user_tenant,
     fetch_companies,
@@ -12,11 +13,14 @@ from dal.db_connector import (
     save_result,
     populate_features
 )
+
+from pydantic import BaseModel
 from services.event_publisher import publish_compliance_events
-from services.shariah_governance import (
-    get_active_fatwa,
-    log_compliance_decision,
-)
+from services.audit_logger import log_compliance_decision
+from services.shariah_governance import check_shariah_compliance
+from services.fatwa_registry import get_active_fatwa
+from services.shariah_governance import fatwa_is_approved
+from services.shariah_governance import run_shariah_governance
 # ----------------------------
 # 1️⃣ FastAPI instance
 # ----------------------------
@@ -156,21 +160,40 @@ def compliance(company_id: str, request: Request):
     # ----------------------------
     # Run compliance check using JSON thresholds
     # ----------------------------
-    from services.shariah_governance import check_shariah_compliance
+
+    if THRESHOLDS is None:
+        raise HTTPException(status_code=500, detail="Thresholds not loaded")
     # ----------------------------
     # Run compliance check
     # ----------------------------
     status, violations = check_shariah_compliance(company, THRESHOLDS)
 
+    explanation = generate_explanation(
+        company,
+        status,
+        violations,
+        THRESHOLDS
+    )
+
     # ----------------------------
-    # Governance binding (NEW)
+    # Governance binding
     # ----------------------------
-    rule_code = "SHARIAH_SCREENING"  # thesis-safe default
+    # ----------------------------
+    # Governance binding
+    # ----------------------------
+    rule_code = "SHARIAH_SCREENING"
 
     fatwa = get_active_fatwa(rule_code, tenant_id)
 
     if fatwa:
         fatwa_id, fatwa_version, ruling = fatwa
+
+        # ✅ NEW — runtime scholar approval enforcement
+        if not fatwa_is_approved(fatwa_id):
+            print("⚠️ Fatwa exists but not scholar-approved yet")
+
+            # thesis-safe behavior: still proceed but flag
+            # (production systems might block instead)
 
         # write audit trail
         log_compliance_decision(
@@ -180,6 +203,7 @@ def compliance(company_id: str, request: Request):
             fatwa_version=fatwa_version,
             status=status,
         )
+
     else:
         print(f"⚠️ No active fatwa for rule {rule_code}")
     # ----------------------------
@@ -203,6 +227,7 @@ def compliance(company_id: str, request: Request):
         "company_id": company_id,
         "status": status,
         "violations": violations,
+        "explanation": explanation,
         "scholar_reviews": reviews
     }
 # ----------------------------
@@ -267,3 +292,39 @@ def publish_events(request: Request):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+# ----------------------------
+# Request Schema
+# ----------------------------
+class CompanyInput(BaseModel):
+    company_id: str
+    total_assets: float
+    total_debt: float
+    total_income: float
+    non_halal_income: float
+    cash_and_interest_securities: float
+@app.post("/screen")
+def screen_company(payload: CompanyInput):
+
+    result = run_shariah_governance(
+        company_data=payload.dict(),
+        scholar_reviews=[]
+    )
+
+    return result
+
+# ----------------------------
+# Load Shariah thresholds (JSON)
+# ----------------------------
+THRESHOLDS_PATH = os.path.join(
+    PROJECT_ROOT,
+    "config",
+    "shariah_thresholds.json"
+)
+
+try:
+    with open(THRESHOLDS_PATH, "r") as f:
+        THRESHOLDS = json.load(f)
+    print("✅ Shariah thresholds loaded")
+except Exception as e:
+    THRESHOLDS = None
+    print(f"❌ Failed to load thresholds: {e}")

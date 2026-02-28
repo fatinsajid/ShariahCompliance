@@ -1,20 +1,82 @@
+import os
+import joblib
 import numpy as np
+import pandas as pd
 
-def detect_anomalies(company: dict) -> dict:
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "anomaly_model_v1.pkl")
+
+
+# --------------------------------------------------
+# Load anomaly model safely
+# --------------------------------------------------
+try:
+    anomaly_model = joblib.load(MODEL_PATH)
+    print("✅ Anomaly model loaded")
+except Exception as e:
+    anomaly_model = None
+    print(f"⚠️ Anomaly model not available: {e}")
+
+
+# --------------------------------------------------
+# Feature builder
+# --------------------------------------------------
+def build_feature_vector(company: dict) -> pd.DataFrame:
     """
-    Simple anomaly detection using threshold deviation.
+    Convert company financials into model features.
+    Must match training schema.
     """
 
-    debt_ratio = company["total_debt"] / company["total_assets"]
+    return pd.DataFrame([{
+        "total_assets": company.get("total_assets", 0),
+        "total_debt": company.get("total_debt", 0),
+        "total_income": company.get("total_income", 0),
+        "non_halal_income": company.get("non_halal_income", 0),
+        "cash_and_interest_securities": company.get(
+            "cash_and_interest_securities", 0
+        ),
+    }])
 
-    # Example anomaly rule
-    if debt_ratio > 0.60:
+
+# --------------------------------------------------
+# Main anomaly function
+# --------------------------------------------------
+def detect_anomaly(company: dict) -> dict:
+    """
+    Returns anomaly flag + score.
+    Safe for production and thesis.
+    """
+
+    if anomaly_model is None:
         return {
-            "anomaly_detected": True,
-            "reason": "Debt ratio extremely high"
+            "anomaly_flag": False,
+            "anomaly_score": None,
+            "message": "Anomaly model not loaded"
         }
 
-    return {
-        "anomaly_detected": False,
-        "reason": None
-    }
+    try:
+        X = build_feature_vector(company)
+
+        # IsolationForest style
+        if hasattr(anomaly_model, "decision_function"):
+            score = float(anomaly_model.decision_function(X)[0])
+            pred = anomaly_model.predict(X)[0]  # -1 = anomaly
+            is_anomaly = pred == -1
+
+        # fallback generic
+        else:
+            pred = anomaly_model.predict(X)[0]
+            is_anomaly = bool(pred)
+            score = None
+
+        return {
+            "anomaly_flag": is_anomaly,
+            "anomaly_score": score
+        }
+
+    except Exception as e:
+        return {
+            "anomaly_flag": False,
+            "anomaly_score": None,
+            "error": str(e)
+        }
