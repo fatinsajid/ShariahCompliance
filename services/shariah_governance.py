@@ -4,7 +4,20 @@ from services.compliance_engine import check_shariah_compliance
 from services.fatwa_registry import attach_fatwa_metadata
 from services.scholar_consensus import compute_scholar_consensus
 from services.explainability_engine import generate_ml_explanation
-from dal.db_connector import fetch_fatwa_by_id
+from dal.db_connector import fetch_fatwa_by_id, fetch_scholar_approvals
+
+def get_active_fatwa(rule_code: str, tenant_id: str):
+    """
+    Return the latest active fatwa for a given rule and tenant.
+    Returns: (fatwa_id, version, ruling) or None
+    """
+    fatwas = fetch_fatwa_by_rule(rule_code, tenant_id)
+    if not fatwas:
+        return None
+
+    # pick the latest version
+    fatwa = max(fatwas, key=lambda f: f["version"])
+    return fatwa["fatwa_id"], fatwa["version"], fatwa["ruling"]
 
 
 def fatwa_is_approved(fatwa_id: str, tenant_id: str) -> bool:

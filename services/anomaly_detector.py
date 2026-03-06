@@ -80,3 +80,20 @@ def detect_anomaly(company: dict) -> dict:
             "anomaly_score": None,
             "error": str(e)
         }
+class AnomalyDetector:
+    def __init__(self, model_path="models/anomaly_model.pkl"):
+        self.model_path = model_path
+        self.model = None
+
+    def load(self):
+        self.model = joblib.load(self.model_path)
+        print("✅ Anomaly model loaded")
+
+    def detect(self, company: dict) -> bool:
+        X = [[
+            company.get("total_assets", 0),
+            company.get("total_debt", 0),
+            company.get("non_halal_income", 0)
+        ]]
+        pred = self.model.predict(X)
+        return bool(pred[0])

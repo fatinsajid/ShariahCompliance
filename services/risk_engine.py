@@ -1,32 +1,40 @@
-def calculate_risk_score(company: dict) -> dict:
+# services/risk_engine.py
 
-    total_assets = company.get("total_assets", 1)
-    total_income = company.get("total_income", 1)
+import os
+import joblib
+import pandas as pd
 
-    if total_assets == 0:
-        total_assets = 1
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "risk_model_v1.pkl")
 
-    if total_income == 0:
-        total_income = 1
+# Load model at module level
+try:
+    model = joblib.load(MODEL_PATH)
+    print("✅ ML risk model loaded successfully")
+except Exception as e:
+    model = None
+    print(f"❌ Failed to load ML model: {e}")
 
-    debt_ratio = company["total_debt"] / total_assets
-    liquidity_ratio = company["cash_and_interest_securities"] / total_assets
-    non_halal_ratio = company["non_halal_income"] / total_income
 
-    risk_score = (
-        debt_ratio * 40 +
-        liquidity_ratio * 30 +
-        non_halal_ratio * 30
-    ) * 100
+def predict_risk_score(company: dict) -> float:
+    """
+    Returns the ML-based risk score for a single company dictionary.
+    """
+    if model is None:
+        raise ValueError("ML model is not loaded")
 
-    if risk_score < 30:
-        risk_level = "LOW"
-    elif risk_score < 60:
-        risk_level = "MEDIUM"
+    X = pd.DataFrame([{
+        "total_assets": company.get("total_assets", 0),
+        "total_debt": company.get("total_debt", 0),
+        "total_income": company.get("total_income", 0),
+        "non_halal_income": company.get("non_halal_income", 0),
+        "cash_and_interest_securities": company.get("cash_and_interest_securities", 0)
+    }])
+
+    if hasattr(model, "predict_proba"):
+        probs = model.predict_proba(X)
+        risk_score = probs[0][1] if probs.shape[1] > 1 else probs[0][0]
     else:
-        risk_level = "HIGH"
+        risk_score = model.predict(X)[0]
 
-    return {
-        "risk_score": round(risk_score, 2),
-        "risk_level": risk_level
-    }
+    return float(risk_score)

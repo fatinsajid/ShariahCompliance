@@ -15,7 +15,7 @@ from dal.db_connector import (
     save_result,
     populate_features
 )
-
+from services.final_decision_engine import FinalDecisionEngine
 from pydantic import BaseModel
 from services.event_publisher import publish_compliance_events
 from services.audit_logger import log_compliance_decision
@@ -150,7 +150,9 @@ def predict(company_id: str, request: Request):
 # ----------------------------
 @app.get("/compliance/{company_id}")
 def compliance(company_id: str, request: Request):
-    tenant_id = request.state.tenant_id
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="Tenant not found in request state")
 
     # Fetch companies for this tenant
     companies = fetch_companies(tenant_id)
@@ -159,78 +161,20 @@ def compliance(company_id: str, request: Request):
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
 
     # ----------------------------
-    # Run compliance check using JSON thresholds
+    # 1️⃣ Use Final Decision Engine
     # ----------------------------
-
-    if THRESHOLDS is None:
-        raise HTTPException(status_code=500, detail="Thresholds not loaded")
-    # ----------------------------
-    # Run compliance check
-    # ----------------------------
-    status, violations = check_shariah_compliance(company, THRESHOLDS)
-
-    explanation = generate_explanation(
-        company,
-        status,
-        violations,
-        THRESHOLDS
-    )
+    engine = FinalDecisionEngine(tenant_id)
+    result = engine.evaluate_company(company)
 
     # ----------------------------
-    # Governance binding
-    # ----------------------------
-    # ----------------------------
-    # Governance binding
-    # ----------------------------
-    rule_code = "SHARIAH_SCREENING"
-
-    fatwa = get_active_fatwa(rule_code, tenant_id)
-
-    if fatwa:
-        fatwa_id, fatwa_version, ruling = fatwa
-
-        # ✅ NEW — runtime scholar approval enforcement
-        if not fatwa_is_approved(fatwa_id):
-            print("⚠️ Fatwa exists but not scholar-approved yet")
-
-            # thesis-safe behavior: still proceed but flag
-            # (production systems might block instead)
-
-        # write audit trail
-        log_compliance_decision(
-            tenant_id=tenant_id,
-            company_id=company_id,
-            rule_code=rule_code,
-            fatwa_version=fatwa_version,
-            status=status,
-        )
-
-    else:
-        print(f"⚠️ No active fatwa for rule {rule_code}")
-    # ----------------------------
-    # Save results to DB
-    # ----------------------------
-    save_company(company, tenant_id)
-    save_result(company_id, tenant_id, status, violations)
-
-    # ----------------------------
-    # Update ML features
-    # ----------------------------
-    populate_features(tenant_id)
-
-    # ----------------------------
-    # Optional: attach mocked scholar reviews
+    # 2️⃣ Optionally return scholar reviews
     # ----------------------------
     from services.shariah_governance import fetch_scholar_reviews
     reviews = fetch_scholar_reviews(company_id, tenant_id)
 
-    return {
-        "company_id": company_id,
-        "status": status,
-        "violations": violations,
-        "explanation": explanation,
-        "scholar_reviews": reviews
-    }
+    result["scholar_reviews"] = reviews
+
+    return result
 # ----------------------------
 # Scholar Review: Approve/Reject
 # ----------------------------

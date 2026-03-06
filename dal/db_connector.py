@@ -559,6 +559,24 @@ def fetch_scholar_reviews(company_id: str, tenant_id: str):
             }
             for r in rows
         ]
+# Fetch all fatwas for a specific rule and tenant
+def fetch_fatwa_by_rule(rule_code: str, tenant_id: str):
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT fatwa_id, version, ruling FROM fatwa WHERE rule_code=%s AND tenant_id=%s",
+            (rule_code, tenant_id)
+        )
+        return cur.fetchall()
+
+# Fetch scholar approvals for a given fatwa
+def fetch_scholar_approvals(fatwa_id: str):
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT scholar_id, decision FROM scholar_review WHERE fatwa_id=%s",
+            (fatwa_id,)
+        )
+        return cur.fetchall()
+
 def insert_audit_log(record: dict):
     """
     Insert audit log into database.
