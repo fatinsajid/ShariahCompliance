@@ -110,3 +110,18 @@ def run_shariah_governance(
     result = attach_fatwa_metadata(result)
 
     return result
+
+# services/shariah_governance.py
+
+def log_compliance_decision(tenant_id, company_id, rule_code, fatwa_version, status):
+    from dal.db_connector import insert_audit_log
+    from datetime import datetime
+
+    insert_audit_log({
+        "tenant_id": tenant_id,
+        "company_id": company_id,
+        "rule_code": rule_code,
+        "fatwa_version": fatwa_version,
+        "status": status,
+        "timestamp": datetime.utcnow()
+    })
