@@ -4,7 +4,9 @@ import joblib
 import pandas as pd
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
+from sklearn.ensemble import IsolationForest
 from jose import jwt, JWTError
+from sklearn.ensemble import IsolationForest
 from services.explainability_engine import generate_explanation
 from dal.db_connector import (
     get_user_tenant,
@@ -38,6 +40,7 @@ ALGORITHM = "HS256"
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "risk_model_v1.pkl")
+ANOMALY_MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "anomaly_model_v1.pkl")
 
 def require_role(request: Request, allowed_roles: list):
     user_role = getattr(request.state, "role", None)
@@ -110,21 +113,19 @@ def root():
 # ----------------------------
 # 6️⃣ Predict Risk
 # ----------------------------
+
+
+anomaly_model = joblib.load(ANOMALY_MODEL_PATH)
+
 @app.get("/predict/{company_id}")
 def predict(company_id: str, request: Request):
-    require_role(request, ["analyst", "admin"])
-    tenant_id = getattr(request.state, "tenant_id", None)
-    if tenant_id is None:
-        raise HTTPException(status_code=401, detail="Tenant not found in request state")
-
+    tenant_id = request.state.tenant_id
     companies = fetch_companies(tenant_id)
     company = next((c for c in companies if c["company_id"] == company_id), None)
     if not company:
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
 
-    if model is None:
-        raise HTTPException(status_code=500, detail="ML model not loaded")
-
+    # Prepare features
     X = pd.DataFrame([{
         "total_assets": company["total_assets"],
         "total_debt": company["total_debt"],
@@ -133,17 +134,17 @@ def predict(company_id: str, request: Request):
         "cash_and_interest_securities": company["cash_and_interest_securities"]
     }])
 
-    try:
-        if hasattr(model, "predict_proba"):
-            probs = model.predict_proba(X)
-            risk_score = probs[0][1] if probs.shape[1] > 1 else probs[0][0]
-        else:
-            risk_score = model.predict(X)[0]
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {e}")
+    # Risk prediction
+    risk_score = model.predict_proba(X)[0][1] if hasattr(model, "predict_proba") else model.predict(X)[0]
 
-    return {"company_id": company_id, "risk_score": float(risk_score)}
+    # Anomaly detection
+    anomaly_flag = anomaly_model.predict(X)[0]  # -1 = anomaly, 1 = normal
 
+    return {
+        "company_id": company_id,
+        "risk_score": float(risk_score),
+        "anomaly": True if anomaly_flag == -1 else False
+    }
 # ----------------------------
 # 7️⃣ Compliance Check
 # ----------------------------

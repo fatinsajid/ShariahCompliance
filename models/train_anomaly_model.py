@@ -41,6 +41,8 @@ def fetch_company_financials(tenant_id: str):
     print("Columns fetched:", df.columns.tolist())
     print("First 3 rows:\n", df.head(3))
     return df
+    print("Query response:", response)
+    print("Data:", response.data)
 
 # ----------------------------
 # 3️⃣ Prepare features
