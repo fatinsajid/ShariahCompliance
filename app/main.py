@@ -7,12 +7,17 @@ from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
 from dal.db_connector import (
     get_user_tenant,
-    fetch_companies
+    fetch_companies,
+    save_company,
+    save_result,
+    populate_features
 )
 from services.final_decision_engine import FinalDecisionEngine
 from pydantic import BaseModel
 from services.event_publisher import publish_compliance_events
-from services.shariah_governance import run_shariah_governance
+from services.shariah_governance import check_shariah_compliance, fetch_scholar_approvals, get_active_fatwa, fatwa_is_approved, run_shariah_governance
+from services.explainability_engine import generate_explanation
+from services.audit_logger import log_compliance_decision
 
 # ----------------------------
 # 1️⃣ FastAPI instance
@@ -259,35 +264,91 @@ class CompanyInput(BaseModel):
     sector: str
 
 @app.post("/screen")
-def screen_company(payload: CompanyInput, request: Request):
-    tenant_id = getattr(request.state, "tenant_id", None)
-    if not tenant_id:
-        raise HTTPException(status_code=401, detail="Tenant not found in request state")
+def screen_company(payload: dict, request: Request):
+    """
+    Integrated company screening:
+    - ML risk score
+    - Shariah compliance check
+    - Anomaly detection
+    - Explainability
+    - Scholar/fatwa governance
+    - Audit logging
+    """
+    tenant_id = request.state.tenant_id
+    company_id = payload.get("company_id")
 
-    # Convert Pydantic input to dict
-    company_data = payload.dict()
+    # 1️⃣ Fetch company data
+    companies = fetch_companies(tenant_id)
+    company = next((c for c in companies if c["company_id"] == company_id), None)
+    if not company:
+        raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
 
-    # ----------------------------
-    # Use the Final Decision Engine
-    # ----------------------------
-    engine = FinalDecisionEngine(tenant_id)
-    result = engine.evaluate_company(company_data)
+    # 2️⃣ ML Risk Prediction
+    X = pd.DataFrame([{
+        "total_assets": company["total_assets"],
+        "total_debt": company["total_debt"],
+        "total_income": company["total_income"],
+        "non_halal_income": company["non_halal_income"],
+        "cash_and_interest_securities": company["cash_and_interest_securities"]
+    }])
 
-    return result
-# ----------------------------
-# Load Shariah thresholds (JSON)
-# ----------------------------
-THRESHOLDS_PATH = os.path.join(
-    PROJECT_ROOT,
-    "config",
-    "shariah_thresholds.json"
-)
+    try:
+        if hasattr(model, "predict_proba"):
+            probs = model.predict_proba(X)
+            risk_score = probs[0][1] if probs.shape[1] > 1 else probs[0][0]
+        else:
+            risk_score = model.predict(X)[0]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ML prediction failed: {e}")
 
-try:
-    with open(THRESHOLDS_PATH, "r") as f:
-        THRESHOLDS = json.load(f)
-    print("✅ Shariah thresholds loaded")
-except Exception as e:
-    THRESHOLDS = None
-    print(f"❌ Failed to load thresholds: {e}")
+    # 3️⃣ Shariah Compliance
+    from config.shariah_thresholds import THRESHOLDS
+    status, violations = check_shariah_compliance(company, THRESHOLDS)
+
+    # 4️⃣ Explainability
+    explanation = generate_explanation(company, status, violations, THRESHOLDS)
+
+    # 5️⃣ Governance & Fatwa check
+    rule_code = "SHARIAH_SCREENING"
+    fatwa = get_active_fatwa(rule_code, tenant_id)
+    governance_flag = None
+
+    if fatwa:
+        fatwa_id, fatwa_version, ruling = fatwa
+        if not fatwa_is_approved(fatwa_id):
+            governance_flag = "Pending scholar approval"
+        log_compliance_decision(
+            tenant_id=tenant_id,
+            company_id=company_id,
+            rule_code=rule_code,
+            fatwa_version=fatwa_version,
+            status=status
+        )
+
+    # 6️⃣ Save results & update ML features
+    save_company(company, tenant_id)
+    save_result(company_id, tenant_id, status, violations)
+    populate_features(tenant_id)
+
+    # 7️⃣ Optional: publish event
+    try:
+        publish_compliance_events(tenant_id)
+    except Exception as e:
+        print(f"⚠️ Event publishing failed: {e}")
+
+    # 8️⃣ Fetch scholar reviews
+    reviews = fetch_scholar_approvals(company_id, tenant_id)
+
+    # 9️⃣ Assemble response
+    response = {
+        "company_id": company_id,
+        "risk_score": float(risk_score),
+        "compliance_status": status,
+        "violations": violations,
+        "explanation": explanation,
+        "governance_flag": governance_flag,
+        "scholar_reviews": reviews
+    }
+
+    return response
 

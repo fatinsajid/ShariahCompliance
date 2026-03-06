@@ -1,9 +1,8 @@
 import os
-import logging
 from contextlib import contextmanager
 from typing import List, Dict, Iterable, Any
 import uuid
-
+from datetime import datetime
 import psycopg2
 from psycopg2.pool import SimpleConnectionPool
 from psycopg2.extras import execute_batch
@@ -577,9 +576,15 @@ def fetch_scholar_approvals(fatwa_id: str):
         )
         return cur.fetchall()
 
-def insert_audit_log(record: dict):
+def insert_audit_log(log_entry: dict):
     """
-    Insert audit log into database.
+    Thesis-safe audit log insertion.
+    For now, this prints the log to console.
+    In a production system, this would persist to an audit table.
     """
-    # your Supabase insert here
-    pass
+    print(f"📜 Audit Log: {log_entry}")
+    # Optional: simulate DB insertion
+    # You can create a table 'audit_logs' later if needed
+    log_entry.setdefault("created_at", datetime.utcnow())
+    # If you want, you can append to an in-memory list for testing:
+    # _audit_logs.append(log_entry)

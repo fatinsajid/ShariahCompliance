@@ -7,7 +7,6 @@ from dal.db_connector import (
     fetch_companies,
 )
 from services.compliance_engine import check_shariah_compliance
-from services.anomaly_detector import detect_anomaly
 from services.explainability_engine import generate_explanation
 from services.shariah_governance import get_active_fatwa, fatwa_is_approved, log_compliance_decision
 
