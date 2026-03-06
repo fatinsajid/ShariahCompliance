@@ -4,25 +4,16 @@ import joblib
 import pandas as pd
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
-from sklearn.ensemble import IsolationForest
 from jose import jwt, JWTError
-from sklearn.ensemble import IsolationForest
-from services.explainability_engine import generate_explanation
 from dal.db_connector import (
     get_user_tenant,
-    fetch_companies,
-    save_company,
-    save_result,
-    populate_features
+    fetch_companies
 )
 from services.final_decision_engine import FinalDecisionEngine
 from pydantic import BaseModel
 from services.event_publisher import publish_compliance_events
-from services.audit_logger import log_compliance_decision
-from services.shariah_governance import check_shariah_compliance
-from services.fatwa_registry import get_active_fatwa
-from services.shariah_governance import fatwa_is_approved
 from services.shariah_governance import run_shariah_governance
+
 # ----------------------------
 # 1️⃣ FastAPI instance
 # ----------------------------
@@ -257,6 +248,32 @@ def screen_company(payload: CompanyInput):
 
     return result
 
+# Define input schema for API
+class CompanyInput(BaseModel):
+    company_id: str
+    total_assets: float
+    total_debt: float
+    total_income: float
+    non_halal_income: float
+    cash_and_interest_securities: float
+    sector: str
+
+@app.post("/screen")
+def screen_company(payload: CompanyInput, request: Request):
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="Tenant not found in request state")
+
+    # Convert Pydantic input to dict
+    company_data = payload.dict()
+
+    # ----------------------------
+    # Use the Final Decision Engine
+    # ----------------------------
+    engine = FinalDecisionEngine(tenant_id)
+    result = engine.evaluate_company(company_data)
+
+    return result
 # ----------------------------
 # Load Shariah thresholds (JSON)
 # ----------------------------
@@ -273,3 +290,4 @@ try:
 except Exception as e:
     THRESHOLDS = None
     print(f"❌ Failed to load thresholds: {e}")
+
