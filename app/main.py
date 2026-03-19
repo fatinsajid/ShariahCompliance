@@ -351,4 +351,30 @@ def screen_company(payload: dict, request: Request):
     }
 
     return response
+@app.get("/dashboard/kpis")
+def get_kpis(request: Request):
+    tenant_id = request.state.tenant_id
 
+    companies = fetch_companies(tenant_id)
+
+    total = len(companies)
+    if total == 0:
+        return {"message": "No data"}
+
+    compliant = 0
+    total_violations = 0
+
+    for c in companies:
+        status, violations = check_shariah_compliance(c, THRESHOLDS)
+
+        if status == "compliant":
+            compliant += 1
+
+        total_violations += len(violations)
+
+    return {
+        "total_companies": total,
+        "compliant_percentage": round(compliant / total * 100, 2),
+        "non_compliant_percentage": round((total - compliant) / total * 100, 2),
+        "avg_violations": round(total_violations / total, 2)
+    }
