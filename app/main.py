@@ -483,3 +483,39 @@ def download_pdf(results: list):
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=report.pdf"}
     )
+@app.get("/dashboard/overview")
+def dashboard_overview(request: Request):
+
+    tenant_id = request.state.tenant_id
+
+    companies = fetch_companies(tenant_id)
+
+    total = len(companies)
+    compliant = 0
+    non_compliant = 0
+    total_violations = 0
+    risk_scores = []
+
+    for c in companies:
+        result = fetch_result_by_company(c["company_id"], tenant_id)
+
+        if not result:
+            continue
+
+        if result["status"] == "COMPLIANT":
+            compliant += 1
+        else:
+            non_compliant += 1
+
+        total_violations += len(result.get("violations", []))
+        risk_scores.append(result.get("risk_score", 0))
+
+    avg_violations = total_violations / total if total else 0
+
+    return {
+        "total_companies": total,
+        "compliance_pct": (compliant / total * 100) if total else 0,
+        "non_compliance_pct": (non_compliant / total * 100) if total else 0,
+        "avg_violations": avg_violations,
+        "risk_distribution": risk_scores
+    }
