@@ -2,7 +2,7 @@ import os
 import json
 import joblib
 import pandas as pd
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.responses import JSONResponse
 from jose import jwt, JWTError
 from dal.db_connector import (
@@ -378,3 +378,37 @@ def get_kpis(request: Request):
         "non_compliant_percentage": round((total - compliant) / total * 100, 2),
         "avg_violations": round(total_violations / total, 2)
     }
+
+@app.post("/screen/bulk")
+async def bulk_screen(request: Request, file: UploadFile = File(...)):
+
+    tenant_id = request.state.tenant_id
+
+    if file.filename.endswith(".csv"):
+        df = pd.read_csv(file.file)
+
+        results = []
+
+        for _, row in df.iterrows():
+            company_data = row.to_dict()
+
+            result = run_shariah_governance(
+                company_data=company_data,
+                scholar_reviews=[]
+            )
+
+            results.append({
+                "company_id": company_data.get("company_id"),
+                "result": result
+            })
+
+        return {
+            "processed": len(results),
+            "results": results
+        }
+
+    elif file.filename.endswith(".pdf"):
+        return {"message": "PDF processing not fully implemented yet"}
+
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file format")
