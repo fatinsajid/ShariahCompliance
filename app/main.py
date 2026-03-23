@@ -1,9 +1,12 @@
 import os
 import json
+import io
 import joblib
 import pandas as pd
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 from jose import jwt, JWTError
 from dal.db_connector import (
     get_user_tenant,
@@ -412,3 +415,71 @@ async def bulk_screen(request: Request, file: UploadFile = File(...)):
 
     else:
         raise HTTPException(status_code=400, detail="Unsupported file format")
+
+@app.post("/download/csv")
+def download_csv(results: list):
+    """
+    Accepts list of screening results and returns CSV file
+    """
+
+    try:
+        # Flatten results
+        flattened = []
+
+        for item in results:
+            company_id = item.get("company_id")
+            result = item.get("result", {})
+
+            flattened.append({
+                "company_id": company_id,
+                "status": result.get("status"),
+                "risk_score": result.get("risk_score"),
+                "anomaly_flag": result.get("anomaly", {}).get("anomaly_flag"),
+                "violations": ", ".join(result.get("violations", []))
+            })
+
+        df = pd.DataFrame(flattened)
+
+        buffer = io.StringIO()
+        df.to_csv(buffer, index=False)
+        buffer.seek(0)
+
+        return StreamingResponse(
+            buffer,
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=results.csv"}
+        )
+
+    except Exception as e:
+        return {"error": str(e)}
+@app.post("/download/pdf")
+def download_pdf(results: list):
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer)
+    styles = getSampleStyleSheet()
+
+    elements = []
+
+    for item in results:
+        company_id = item.get("company_id")
+        result = item.get("result", {})
+
+        text = f"""
+        Company: {company_id}<br/>
+        Status: {result.get("status")}<br/>
+        Risk Score: {result.get("risk_score")}<br/>
+        Violations: {', '.join(result.get("violations", []))}
+        """
+
+        elements.append(Paragraph(text, styles["Normal"]))
+        elements.append(Spacer(1, 12))
+
+    doc.build(elements)
+    buffer.seek(0)
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=report.pdf"}
+    )
