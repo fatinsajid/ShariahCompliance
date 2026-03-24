@@ -4,6 +4,7 @@ import io
 import joblib
 import pandas as pd
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
@@ -59,6 +60,8 @@ except Exception as e:
 @app.middleware("http")
 async def supabase_auth_middleware(request: Request, call_next):
     # Public endpoints
+    if request.url.path.startswith("/dashboard"):
+        return await call_next(request)
     if request.url.path in ["/health", "/", "/docs", "/openapi.json"]:
         return await call_next(request)
 
@@ -483,18 +486,30 @@ def download_pdf(results: list):
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=report.pdf"}
     )
+@app.get("/dashboard/")
+def dashboard_root():
+    return RedirectResponse(url="/dashboard/overview")
+
 @app.get("/dashboard/overview")
 def dashboard_overview(request: Request):
 
-    tenant_id = request.state.tenant_id
-
+    tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
+    if tenant_id == "demo-tenant":
+        return {
+            "total_companies": 12,
+            "compliance_pct": 75,
+            "non_compliance_pct": 25,
+            "avg_violations": 1.8,
+            "risk_distribution": [0.1, 0.3, 0.5, 0.2, 0.7, 0.9, 0.15, 0.4, 0.8, 0.6, 0.25, 0.35]
+        }
     companies = fetch_companies(tenant_id)
+    results = fetch_results(tenant_id)
 
     total = len(companies)
-    compliant = 0
-    non_compliant = 0
-    total_violations = 0
-    risk_scores = []
+    compliant = sum(1 for r in results if r["status"] == "compliant")
+    non_compliant = total - compliant
+    avg_violations = sum(len(r["violations"]) for r in results) / max(total, 1)
+    risk_distribution = [r.get("risk_score", 0) for r in results]
 
     for c in companies:
         result = fetch_result_by_company(c["company_id"], tenant_id)
@@ -519,3 +534,30 @@ def dashboard_overview(request: Request):
         "avg_violations": avg_violations,
         "risk_distribution": risk_scores
     }
+
+@app.get("/dashboard/audit-logs")
+def dashboard_audit_logs(request: Request):
+    tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
+    if tenant_id == "demo-tenant":
+        return [
+            {
+                "id": f"log-{i + 1}",
+                "company_id": f"C{i + 1}",
+                "rule_code": "SHARIAH_SCREENING",
+                "status": "compliant" if i % 4 != 0 else "non-compliant",
+                "fatwa_version": "v1.0",
+                "created_at": "2026-03-24T12:00:00"
+            }
+            for i in range(12)
+        ]
+
+    logs = fetch_audit_logs(tenant_id)
+    return logs
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # your Vite dev URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
