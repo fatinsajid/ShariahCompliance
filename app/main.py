@@ -57,24 +57,13 @@ except Exception as e:
 # ----------------------------
 # 3️⃣ Middleware: Supabase JWT Auth
 # ----------------------------
-@app.middleware("http")
 async def supabase_auth_middleware(request: Request, call_next):
     # Public endpoints
-    if request.url.path.startswith("/dashboard"):
-        return await call_next(request)
-    # TEMPORARY: bypass auth for development
-    # if (
-    #         request.url.path.startswith("/dashboard") or
-    #         request.url.path.startswith("/audit") or
-    #         request.url.path.startswith("/predict") or
-    #         request.url.path.startswith("/compliance") or
-    #         request.url.path.startswith("/screen") or
-    #         request.url.path.startswith("/download")
-    # ):
-    #     return await call_next(request)
-    if request.url.path in ["/health", "/", "/docs", "/openapi.json"]:
+    public_paths = ["/health", "/", "/docs", "/openapi.json", "/login"]
+    if any(request.url.path.startswith(p) for p in public_paths):
         return await call_next(request)
 
+    # Authorization header
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
         return JSONResponse(
@@ -89,13 +78,19 @@ async def supabase_auth_middleware(request: Request, call_next):
             token,
             SUPABASE_JWT_SECRET,
             algorithms=[ALGORITHM],
-            audience="authenticated"  # required for Supabase
+            audience="authenticated"  # Supabase standard
         )
 
-        tenant_info = get_user_tenant(payload["sub"])
+        # Attach tenant_id and role to request.state
+        tenant_info = get_user_tenant(payload.get("sub"))
+        if not tenant_info:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Tenant info not found"}
+            )
 
-        request.state.tenant_id = tenant_info["tenant_id"]
-        request.state.role = tenant_info["role"]
+        request.state.tenant_id = tenant_info.get("tenant_id", "demo-tenant")
+        request.state.role = tenant_info.get("role", "user")
 
     except JWTError:
         return JSONResponse(
