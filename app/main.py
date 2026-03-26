@@ -502,24 +502,31 @@ def dashboard_root():
 
 @app.get("/dashboard/overview")
 def dashboard_overview(request: Request):
-
+    # Use tenant from request or fallback to demo
     tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
+
     if tenant_id == "demo-tenant":
         return {
-            "total_companies": 12,
-            "compliance_pct": 75,
-            "non_compliance_pct": 25,
-            "avg_violations": 1.8,
-            "risk_distribution": [0.1, 0.3, 0.5, 0.2, 0.7, 0.9, 0.15, 0.4, 0.8, 0.6, 0.25, 0.35]
+            "totalCompanies": 12,
+            "compliancePercent": 75,
+            "nonCompliancePercent": 25,
+            "avgViolations": 1.8,
+            "riskDistribution": [0.1, 0.3, 0.5, 0.2, 0.7, 0.9, 0.15, 0.4, 0.8, 0.6, 0.25, 0.35],
+            "recentAuditLogs": [
+                {"company": "Company A", "status": "Compliant", "violations": 0, "date": "2026-03-25"},
+                {"company": "Company B", "status": "Non-Compliant", "violations": 2, "date": "2026-03-24"},
+            ]
         }
+
     companies = fetch_companies(tenant_id)
     results = fetch_results(tenant_id)
 
     total = len(companies)
-    compliant = sum(1 for r in results if r["status"] == "compliant")
-    non_compliant = total - compliant
-    avg_violations = sum(len(r["violations"]) for r in results) / max(total, 1)
-    risk_distribution = [r.get("risk_score", 0) for r in results]
+    compliant = 0
+    non_compliant = 0
+    total_violations = 0
+    risk_scores = []
+    recent_audit_logs = []
 
     for c in companies:
         result = fetch_result_by_company(c["company_id"], tenant_id)
@@ -527,22 +534,32 @@ def dashboard_overview(request: Request):
         if not result:
             continue
 
-        if result["status"] == "COMPLIANT":
+        status_lower = result["status"].lower()
+        if status_lower == "compliant":
             compliant += 1
         else:
             non_compliant += 1
 
-        total_violations += len(result.get("violations", []))
+        violations_count = len(result.get("violations", []))
+        total_violations += violations_count
         risk_scores.append(result.get("risk_score", 0))
+
+        recent_audit_logs.append({
+            "company": c["name"],
+            "status": result["status"].capitalize(),
+            "violations": violations_count,
+            "date": result.get("date", "N/A")
+        })
 
     avg_violations = total_violations / total if total else 0
 
     return {
-        "total_companies": total,
-        "compliance_pct": (compliant / total * 100) if total else 0,
-        "non_compliance_pct": (non_compliant / total * 100) if total else 0,
-        "avg_violations": avg_violations,
-        "risk_distribution": risk_scores
+        "totalCompanies": total,
+        "compliancePercent": round((compliant / total * 100) if total else 0, 1),
+        "nonCompliancePercent": round((non_compliant / total * 100) if total else 0, 1),
+        "avgViolations": round(avg_violations, 1),
+        "riskDistribution": risk_scores,
+        "recentAuditLogs": recent_audit_logs
     }
 
 @app.get("/dashboard/audit-logs")
