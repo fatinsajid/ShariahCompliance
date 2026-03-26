@@ -63,17 +63,17 @@ async def supabase_auth_middleware(request: Request, call_next):
     if request.url.path.startswith("/dashboard"):
         return await call_next(request)
     # TEMPORARY: bypass auth for development
-    if (
-            request.url.path.startswith("/dashboard") or
-            request.url.path.startswith("/audit") or
-            request.url.path.startswith("/predict") or
-            request.url.path.startswith("/compliance") or
-            request.url.path.startswith("/screen") or
-            request.url.path.startswith("/download")
-    ):
-        return await call_next(request)
-    # if request.url.path in ["/health", "/", "/docs", "/openapi.json"]:
+    # if (
+    #         request.url.path.startswith("/dashboard") or
+    #         request.url.path.startswith("/audit") or
+    #         request.url.path.startswith("/predict") or
+    #         request.url.path.startswith("/compliance") or
+    #         request.url.path.startswith("/screen") or
+    #         request.url.path.startswith("/download")
+    # ):
     #     return await call_next(request)
+    if request.url.path in ["/health", "/", "/docs", "/openapi.json"]:
+        return await call_next(request)
 
     auth_header = request.headers.get("Authorization")
     if not auth_header or not auth_header.startswith("Bearer "):
