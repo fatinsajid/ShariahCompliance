@@ -66,3 +66,36 @@ button {
 .section-title {
   @apply text-lg font-semibold mb-3;
 }
+/* Inputs */
+.input-style {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.2);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  outline: none;
+}
+
+.input-style::placeholder {
+  color: rgba(255,255,255,0.7);
+}
+
+/* Button */
+.btn-primary {
+  padding: 10px;
+  border-radius: 8px;
+  background: #4f46e5;
+  color: white;
+  transition: 0.2s;
+}
+
+.btn-primary:hover {
+  background: #4338ca;
+}
+.input {
+  @apply w-full p-3 mb-3 rounded-lg bg-white/20 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500;
+}
+
+.btn {
+  @apply bg-purple-600 hover:bg-purple-700 text-white py-3 rounded-lg font-medium transition;
+}

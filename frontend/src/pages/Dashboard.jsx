@@ -6,7 +6,7 @@ import ComplianceChart from "../components/dashboard/ComplianceChart";
 import RiskDistribution from "../components/dashboard/RiskDistribution";
 import RecentAuditLogs from "../components/dashboard/RecentAuditLogs";
 import Sidebar from "../components/dashboard/Sidebar";
-import TopBar from "../components/dashboard/TopBar";
+import Topbar from "../components/dashboard/Topbar";
 
 const DashboardPage = () => {
   const [data, setData] = useState(null);
@@ -65,7 +65,7 @@ const DashboardPage = () => {
       {/* Main content */}
       <div className="flex-1 flex flex-col">
         {/* Top Bar */}
-        <TopBar username="John Doe" />
+        <Topbar/>
 
         {/* Page content */}
         <div className="flex-1 overflow-auto p-6 space-y-6">

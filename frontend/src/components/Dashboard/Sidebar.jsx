@@ -1,35 +1,77 @@
 // src/components/dashboard/Sidebar.jsx
-import { FiHome, FiLogOut, FiFolder, FiClipboard, FiBarChart2, FiInfo } from "react-icons/fi"; // ensure you run: npm install react-icons
-import logo from "../../components/dashboard/logo.png"; // add your logo in /assets
+
+import {
+  FiHome,
+  FiLogOut,
+  FiFolder,
+  FiClipboard,
+  FiBarChart2,
+  FiInfo,
+} from "react-icons/fi";
+import logo from "./logo.png";
+import { useNavigate, useLocation } from "react-router-dom";
+import { supabase } from "../../lib/supabaseClient";
 
 const Sidebar = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleLogout = async () => {
+  await supabase.auth.signOut();
+  navigate("/login");
+};
+
   const links = [
-  { name: "Dashboard",icon: <FiHome />, href: "/dashboard" },
-  { name: "Data Analysis",icon: <FiBarChart2 />, href: "/data-analysis" },
-  { name: "Company Details",icon: <FiInfo />, href: "/company-details" },
-  { name: "Audit Log",icon: <FiFolder />, href: "/audit-log" },
-  { name: "Scholar Reviews",icon: <FiClipboard />, href: "/scholar-reviews" },
-  { name: "Log Out",icon: <FiLogOut />, href: "/log-out" },
-];
+    { name: "Dashboard", icon: <FiHome />, path: "/dashboard" },
+    { name: "Data Analysis", icon: <FiBarChart2 />, path: "/data-analysis" },
+    { name: "Company Details", icon: <FiInfo />, path: "/companies" },
+    { name: "Audit Log", icon: <FiFolder />, path: "/audit-logs" },
+    { name: "Scholar Reviews", icon: <FiClipboard />, path: "/scholar-reviews" },
+  ];
 
   return (
-    <div className="w-64 min-h-screen bg-gray-900 text-white flex flex-col">
-      <div className="p-6 flex items-center space-x-2">
-        <img src={logo} alt="Logo" className="h-20 w-full object-cover rounded" />
-    
+    <div className="w-64 min-h-screen bg-gray-900 text-white flex flex-col justify-between ">
+
+      {/* Logo */}
+      <div>
+        <div className="p-4">
+          <img
+            src={logo}
+            alt="Logo"
+            className="w-full h-24 object-cover"/>
+        </div>
+
+        {/* Navigation */}
+        <nav className="px-4 mt-4">
+          {links.map((link) => {
+            const isActive = location.pathname === link.path;
+
+            return (
+              <div
+                key={link.name}
+                onClick={() => navigate(link.path)}
+                className={`flex items-center px-4 py-2 mb-2 rounded cursor-pointer transition
+                  ${isActive ? "bg-purple-700" : "hover:bg-gray-700"}
+                `}
+              >
+                {link.icon}
+                <span className="ml-3">{link.name}</span>
+              </div>
+            );
+          })}
+        </nav>
       </div>
-      <nav className="flex-1 px-4 py-2">
-        {links.map((link) => (
-          <a
-            key={link.name}
-            href={link.href}
-            className="flex items-center px-4 py-2 mb-2 rounded hover:bg-purple-700 transition"
-          >
-            {link.icon}
-            <span className="ml-3">{link.name}</span>
-          </a>
-        ))}
-      </nav>
+
+      {/* Logout (Bottom) */}
+      <div className="px-4 pb-6">
+        <div
+          onClick={handleLogout}
+          className="flex items-center px-4 py-2 rounded cursor-pointer hover:bg-red-600 transition"
+        >
+          <FiLogOut />
+          <span className="ml-3">Log Out</span>
+        </div>
+      </div>
     </div>
   );
 };
