@@ -22,7 +22,7 @@ from services.event_publisher import publish_compliance_events
 from services.shariah_governance import check_shariah_compliance, fetch_scholar_approvals, get_active_fatwa, fatwa_is_approved, run_shariah_governance
 from services.explainability_engine import generate_explanation
 from services.audit_logger import log_compliance_decision
-
+from app.routes.dashboard import router as dashboard_router
 # ----------------------------
 # 1️⃣ FastAPI instance
 # ----------------------------
@@ -583,3 +583,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add middleware
+app.middleware("http")(supabase_auth_middleware)
+
+# Include routers
+app.include_router(dashboard_router, prefix="/dashboard")
