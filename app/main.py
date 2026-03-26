@@ -583,7 +583,12 @@ def get_companies(request: Request):
     companies_res = supabase.table("companies").select("*").execute()
     companies = companies_res.data if companies_res.data else []
 
-    return {"companies": companies}
+    return {
+        "companies": [
+            {"company_id": 1, "name": "ABC Corp", "status": "Compliant", "risk_score": 0.3},
+            {"company_id": 2, "name": "XYZ Ltd", "status": "Non-Compliant", "risk_score": 0.7},
+        ]
+    }
 
 app.add_middleware(
     CORSMiddleware,
