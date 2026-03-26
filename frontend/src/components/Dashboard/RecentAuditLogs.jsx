@@ -1,31 +1,36 @@
 export default function RecentAuditLogs({ logs }) {
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm">
-      <h2 className="text-lg font-semibold mb-4">Recent Audit Logs</h2>
-
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left text-gray-500 border-b">
-            <th>Company</th>
-            <th>Status</th>
-            <th>Violations</th>
-            <th>Date</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {logs.map((log, i) => (
-            <tr key={i} className="border-b">
-              <td>{log.company_id}</td>
-              <td className={log.status === "PASS" ? "text-green-600" : "text-red-600"}>
-                {log.status}
-              </td>
-              <td>{log.violations?.length || 0}</td>
-              <td>{new Date(log.timestamp).toLocaleDateString()}</td>
+    <div className="bg-white rounded-lg shadow p-6">
+      <h3 className="text-gray-700 font-semibold mb-4">Recent Audit Logs</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead>
+            <tr>
+              <th className="px-4 py-2 text-left text-gray-500 text-sm">Company</th>
+              <th className="px-4 py-2 text-left text-gray-500 text-sm">Status</th>
+              <th className="px-4 py-2 text-left text-gray-500 text-sm">Violations</th>
+              <th className="px-4 py-2 text-left text-gray-500 text-sm">Date</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {logs.map((log, idx) => (
+              <tr key={idx}>
+                <td className="px-4 py-2">{log.company}</td>
+                <td className="px-4 py-2">{log.status}</td>
+                <td className="px-4 py-2">{log.violations.join(", ")}</td>
+                <td className="px-4 py-2">{new Date(log.date).toLocaleDateString()}</td>
+              </tr>
+            ))}
+            {logs.length === 0 && (
+              <tr>
+                <td colSpan="4" className="px-4 py-2 text-center text-gray-400">
+                  No logs available
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

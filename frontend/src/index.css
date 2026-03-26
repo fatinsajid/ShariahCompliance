@@ -1,23 +1,12 @@
-/* ------------------------------ */
-/* 1️⃣ Charset declaration (optional but safe) */
-/* ------------------------------ */
+
 @charset "utf-8";
 
-/* ------------------------------ */
-/* 2️⃣ Import Google Fonts first */
-/* ------------------------------ */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
 
-/* ------------------------------ */
-/* 3️⃣ Tailwind base, components, utilities */
-/* ------------------------------ */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ------------------------------ */
-/* 4️⃣ Custom global styles for your dashboard */
-/* ------------------------------ */
 body {
   font-family: 'Inter', sans-serif;
   background-color: #f9fafb; /* Light gray background */
