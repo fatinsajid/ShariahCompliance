@@ -589,7 +589,45 @@ def get_companies(request: Request):
             {"company_id": 2, "name": "XYZ Ltd", "status": "Non-Compliant", "risk_score": 0.7},
         ]
     }
+@app.middleware("http")
+async def supabase_auth_middleware(request: Request, call_next):
 
+    # ✅ PUBLIC ROUTES (no auth required)
+    if (
+        request.url.path.startswith("/dashboard") or
+        request.url.path.startswith("/companies") or
+        request.url.path in ["/health", "/", "/docs", "/openapi.json"]
+    ):
+        return await call_next(request)
+
+    # 🔒 AUTH REQUIRED BELOW
+    auth_header = request.headers.get("Authorization")
+
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Missing or invalid Authorization header"}
+        )
+
+    token = auth_header.split(" ")[1]
+
+    try:
+        payload = jwt.decode(
+            token,
+            SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            audience="authenticated"
+        )
+
+        request.state.tenant_id = payload.get("sub")
+
+    except JWTError:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Invalid or expired token"}
+        )
+
+    return await call_next(request)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],  # your Vite dev URL
