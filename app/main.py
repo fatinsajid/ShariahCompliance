@@ -575,6 +575,15 @@ def dashboard_audit_logs(request: Request):
 
     logs = fetch_audit_logs(tenant_id)
     return logs
+@app.get("/companies")
+def get_companies(request: Request):
+    tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
+
+    # Fetch companies from Supabase
+    companies_res = supabase.table("companies").select("*").execute()
+    companies = companies_res.data if companies_res.data else []
+
+    return {"companies": companies}
 
 app.add_middleware(
     CORSMiddleware,

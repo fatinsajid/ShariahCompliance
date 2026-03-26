@@ -1,15 +1,25 @@
+// src/lib/supabaseClient.js
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Pull from environment variables
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+// Defensive: warn if missing
+if (!SUPABASE_URL || !SUPABASE_KEY) {
+  console.error("Supabase environment variables missing!");
+}
 
-// Get JWT token
+// Initialize Supabase client
+export const supabase = createClient(SUPABASE_URL ?? "", SUPABASE_KEY ?? "");
+
+// Export getJWT safely
 export const getJWT = async () => {
-  const user = supabase.auth.user();
-  if (!user) return null;
-
-  const session = supabase.auth.session();
-  return session?.access_token || null;
+  try {
+    const session = await supabase.auth.getSession();
+    return session?.data?.session?.access_token ?? null;
+  } catch (err) {
+    console.error("Error getting JWT:", err);
+    return null;
+  }
 };

@@ -1,17 +1,20 @@
-import { PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
+import { PieChart, Pie, Tooltip, Cell } from "recharts";
 
-const ComplianceChart = ({ compliancePct, nonCompliancePct }) => {
+const ComplianceChart = ({
+  compliancePct = 0,
+  nonCompliancePct = 0,
+}) => {
   const data = [
     { name: "Compliant", value: compliancePct },
     { name: "Non-Compliant", value: nonCompliancePct },
   ];
 
-  const COLORS = ["#22C55E", "#EF4444"];
+  const COLORS = ["#10B981", "#EF4444"];
 
   return (
-    <div className="p-4 bg-white rounded shadow">
-      <p className="text-gray-500 text-sm mb-2">Compliance Chart</p>
-      <PieChart width={250} height={250}>
+    <div className="p-4 bg-white rounded shadow text-center">
+      <p className="text-gray-500 text-lg mb-5">Compliance Overview</p>
+      <PieChart width={350} height={250}>
         <Pie
           data={data}
           dataKey="value"
@@ -19,15 +22,13 @@ const ComplianceChart = ({ compliancePct, nonCompliancePct }) => {
           cx="50%"
           cy="50%"
           outerRadius={80}
-          fill="#8884d8"
           label
         >
           {data.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={COLORS[index]} />
+            <Cell key={index} fill={COLORS[index]} />
           ))}
         </Pie>
         <Tooltip />
-        <Legend />
       </PieChart>
     </div>
   );
