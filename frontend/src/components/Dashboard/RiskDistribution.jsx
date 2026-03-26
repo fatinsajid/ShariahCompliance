@@ -1,13 +1,11 @@
-// src/components/Dashboard/RiskDistribution.jsx
-import React from "react";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 
-const RiskDistribution = ({ data }) => {
+export default function RiskDistribution({ data }) {
   return (
-    <div className="bg-white p-6 rounded-xl shadow">
+    <div className="bg-white p-6 rounded-2xl shadow-sm">
       <h2 className="text-lg font-semibold mb-4">Risk Distribution</h2>
-      <BarChart width={400} height={300} data={data}>
-        <CartesianGrid strokeDasharray="3 3" />
+
+      <BarChart width={350} height={250} data={data}>
         <XAxis dataKey="riskLevel" />
         <YAxis />
         <Tooltip />
@@ -15,6 +13,4 @@ const RiskDistribution = ({ data }) => {
       </BarChart>
     </div>
   );
-};
-
-export default RiskDistribution;
+}
