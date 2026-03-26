@@ -598,3 +598,4 @@ app.middleware("http")(supabase_auth_middleware)
 
 # Include routers
 app.include_router(dashboard_router, prefix="/dashboard")
+app.include_router(dashboard_router, prefix="/company-details")
