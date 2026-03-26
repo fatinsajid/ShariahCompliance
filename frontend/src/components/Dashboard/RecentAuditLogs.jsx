@@ -1,36 +1,33 @@
-export default function RecentAuditLogs({ logs }) {
+const RecentAuditLogs = () => {
+  // Placeholder static logs, replace with API call if needed
+  const logs = [
+    { company: "ABC Ltd", date: "2026-03-26", status: "Compliant" },
+    { company: "XYZ Corp", date: "2026-03-25", status: "Non-Compliant" },
+  ];
+
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h3 className="text-gray-700 font-semibold mb-4">Recent Audit Logs</h3>
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead>
-            <tr>
-              <th className="px-4 py-2 text-left text-gray-500 text-sm">Company</th>
-              <th className="px-4 py-2 text-left text-gray-500 text-sm">Status</th>
-              <th className="px-4 py-2 text-left text-gray-500 text-sm">Violations</th>
-              <th className="px-4 py-2 text-left text-gray-500 text-sm">Date</th>
+    <div className="p-4 bg-white rounded shadow">
+      <p className="text-gray-500 text-sm mb-2">Recent Audit Logs</p>
+      <table className="w-full text-left">
+        <thead>
+          <tr>
+            <th className="border-b p-2">Company</th>
+            <th className="border-b p-2">Date</th>
+            <th className="border-b p-2">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {logs.map((log, i) => (
+            <tr key={i}>
+              <td className="p-2">{log.company}</td>
+              <td className="p-2">{log.date}</td>
+              <td className={`p-2 font-semibold ${log.status === "Compliant" ? "text-green-600" : "text-red-600"}`}>{log.status}</td>
             </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {logs.map((log, idx) => (
-              <tr key={idx}>
-                <td className="px-4 py-2">{log.company}</td>
-                <td className="px-4 py-2">{log.status}</td>
-                <td className="px-4 py-2">{log.violations.join(", ")}</td>
-                <td className="px-4 py-2">{new Date(log.date).toLocaleDateString()}</td>
-              </tr>
-            ))}
-            {logs.length === 0 && (
-              <tr>
-                <td colSpan="4" className="px-4 py-2 text-center text-gray-400">
-                  No logs available
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
-}
+};
+
+export default RecentAuditLogs;

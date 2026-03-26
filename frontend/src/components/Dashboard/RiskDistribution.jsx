@@ -1,17 +1,20 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
-export default function RiskDistribution({ data }) {
+const RiskDistribution = ({ riskScores }) => {
+  const data = riskScores.map((score, index) => ({ name: `C${index + 1}`, score }));
+
   return (
-    <div className="bg-white rounded-lg shadow p-6">
-      <h3 className="text-gray-700 font-semibold mb-4">Risk Distribution</h3>
-      <ResponsiveContainer width="100%" height={250}>
-        <BarChart data={data}>
-          <XAxis dataKey="riskLevel" />
-          <YAxis />
-          <Tooltip />
-          <Bar dataKey="count" fill="#60A5FA" />
-        </BarChart>
-      </ResponsiveContainer>
+    <div className="p-4 bg-white rounded shadow">
+      <p className="text-gray-500 text-sm mb-2">Risk Distribution</p>
+      <BarChart width={350} height={250} data={data}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="name" />
+        <YAxis />
+        <Tooltip />
+        <Bar dataKey="score" fill="#4F46E5" />
+      </BarChart>
     </div>
   );
-}
+};
+
+export default RiskDistribution;

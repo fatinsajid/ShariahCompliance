@@ -1,80 +1,61 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase, getJWT } from "../lib/supabaseClient";
 import KPIs from "../components/dashboard/KPIs";
 import ComplianceChart from "../components/dashboard/ComplianceChart";
 import RiskDistribution from "../components/dashboard/RiskDistribution";
 import RecentAuditLogs from "../components/dashboard/RecentAuditLogs";
 
-export default function Dashboard() {
+const Dashboard = () => {
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [kpiData, setKpiData] = useState({
-    totalCompanies: 0,
-    compliancePercent: 0,
-    nonCompliancePercent: 0,
-    avgViolations: 0
-  });
-  const [complianceData, setComplianceData] = useState([]);
-  const [riskData, setRiskData] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
 
   useEffect(() => {
-    async function fetchDashboard() {
+    const fetchDashboard = async () => {
+      const token = await getJWT();
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
       try {
-        // Example API calls
-        const resOverview = await fetch("/dashboard/overview", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("supabase_token")}` }
+        const res = await fetch(`${import.meta.env.VITE_API_URL}/dashboard/overview`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
-        const overview = await resOverview.json();
-
-        setKpiData({
-          totalCompanies: overview.totalCompanies,
-          compliancePercent: overview.compliancePercent,
-          nonCompliancePercent: overview.nonCompliancePercent,
-          avgViolations: overview.avgViolations
-        });
-
-        setComplianceData([
-          { name: "Compliant", value: overview.compliantCount },
-          { name: "Non-Compliant", value: overview.nonCompliantCount }
-        ]);
-
-        setRiskData(overview.riskDistribution); // [{riskLevel: "Low", count: 5}, ...]
-        setAuditLogs(overview.recentAuditLogs); // [{company, status, violations, date}, ...]
-
+        const json = await res.json();
+        setData(json);
       } catch (err) {
-        console.error("Dashboard fetch error:", err);
+        console.error("Error fetching dashboard:", err);
       } finally {
         setLoading(false);
       }
-    }
+    };
 
     fetchDashboard();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen text-gray-600 font-semibold">
-        Loading Dashboard...
-      </div>
-    );
-  }
+  if (loading) return <div className="p-6 text-gray-500">Loading Dashboard...</div>;
+  if (!data) return <div className="p-6 text-red-500">Unable to load dashboard data</div>;
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen space-y-6">
-      
+    <div className="p-6 space-y-6">
       {/* Row 1: KPIs */}
-      <div className="grid grid-cols-4 gap-6">
-        <KPIs data={kpiData} />
-      </div>
+      <KPIs 
+        totalCompanies={data.total_companies}
+        compliancePct={data.compliance_pct}
+        nonCompliancePct={data.non_compliance_pct}
+        avgViolations={data.avg_violations}
+      />
 
       {/* Row 2: Charts */}
       <div className="grid grid-cols-2 gap-6">
-        <ComplianceChart data={complianceData} />
-        <RiskDistribution data={riskData} />
+        <ComplianceChart compliancePct={data.compliance_pct} nonCompliancePct={data.non_compliance_pct} />
+        <RiskDistribution riskScores={data.risk_distribution} />
       </div>
 
       {/* Row 3: Recent Audit Logs */}
-      <RecentAuditLogs logs={auditLogs} />
-
+      <RecentAuditLogs />
     </div>
   );
-}
+};
+
+export default Dashboard;
