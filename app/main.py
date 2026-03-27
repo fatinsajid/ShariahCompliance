@@ -13,6 +13,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from jose import jwt, JWTError
 from pydantic import BaseModel
+import psycopg2
+from dotenv import load_dotenv
 
 # DAL
 from dal.db_connector import (
@@ -42,6 +44,9 @@ from services.audit_logger import log_compliance_decision
 from app.routes.dashboard import router as dashboard_router
 from app.auth import get_current_user
 from router.app_router import app_router
+
+
+load_dotenv()  # loads .env file
 
 
 # ----------------------------
@@ -138,6 +143,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+def get_db_connection():
+    try:
+        conn = psycopg2.connect(
+            host=os.getenv("DB_HOST"),
+            database=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            port=os.getenv("DB_PORT", 5432)
+        )
+        return conn
+    except Exception as e:
+        print("DB connection error:", e)
+        raise HTTPException(status_code=500, detail="Database connection failed")
+
 
 # ----------------------------
 # 6️⃣ Include Routers
@@ -401,55 +420,55 @@ def dashboard_root():
 
 @app.get("/dashboard/overview")
 def dashboard_overview(request: Request):
+    # safe tenant_id handling
     tenant_id = getattr(request.state, "tenant_id", None)
-    if not tenant_id:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    companies = fetch_companies(tenant_id)
-    total = len(companies)
-    compliant = 0
-    non_compliant = 0
-    total_violations = 0
-    risk_scores = []
-    recent_audit_logs = []
+    if tenant_id is None:
+        # fallback: pick first tenant from DB
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT tenant_id FROM tenants LIMIT 1")  # replace 'tenants' with your table
+            row = cur.fetchone()
+            tenant_id = str(row[0]) if row else None
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print("Error fetching default tenant:", e)
+            raise HTTPException(status_code=500, detail="No tenant found")
 
-    if total == 0:
+    if not tenant_id:
+        raise HTTPException(status_code=404, detail="Tenant ID missing")
+
+    # ---------------------
+    # Fetch dashboard data safely
+    # ---------------------
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Example queries (replace with your actual tables)
+        cur.execute(
+            "SELECT COUNT(*) FROM companies WHERE tenant_id = %s", (tenant_id,)
+        )
+        total_companies = cur.fetchone()[0]
+
+        cur.execute(
+            "SELECT AVG(violations) FROM companies WHERE tenant_id = %s", (tenant_id,)
+        )
+        avg_violations = cur.fetchone()[0] or 0
+
+        cur.close()
+        conn.close()
+
         return {
-            "totalCompanies": 0,
-            "compliancePercent": 0,
-            "nonCompliancePercent": 0,
-            "avgViolations": 0,
-            "riskDistribution": [],
-            "recentAuditLogs": []
+            "totalCompanies": total_companies,
+            "avgViolations": avg_violations,
+            "tenantId": tenant_id
         }
 
-    for c in companies:
-        result = fetch_result_by_company(c["company_id"], tenant_id)
-        if not result:
-            continue
-        status_lower = result["status"].lower()
-        if status_lower == "compliant":
-            compliant += 1
-        else:
-            non_compliant += 1
-        violations_count = len(result.get("violations", []))
-        total_violations += violations_count
-        risk_scores.append(result.get("risk_score", 0))
-        recent_audit_logs.append({
-            "company": c.get("name", "Unknown"),
-            "status": result["status"].capitalize(),
-            "violations": violations_count,
-            "date": result.get("date", "N/A")
-        })
-
-    avg_violations = total_violations / total if total > 0 else 0
-    return {
-        "totalCompanies": total,
-        "compliancePercent": round(compliant / total * 100, 1),
-        "nonCompliancePercent": round(non_compliant / total * 100, 1),
-        "avgViolations": round(avg_violations, 1),
-        "riskDistribution": risk_scores,
-        "recentAuditLogs": recent_audit_logs
-    }
+    except Exception as e:
+        print("Error fetching dashboard data:", e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/dashboard/audit-logs")
 def dashboard_audit_logs(request: Request):
