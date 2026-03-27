@@ -3,7 +3,7 @@ import json
 import io
 import joblib
 import pandas as pd
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
@@ -23,6 +23,7 @@ from services.shariah_governance import check_shariah_compliance, fetch_scholar_
 from services.explainability_engine import generate_explanation
 from services.audit_logger import log_compliance_decision
 from app.routes.dashboard import router as dashboard_router
+from app.auth import get_current_user
 # ----------------------------
 # 1️⃣ FastAPI instance
 # ----------------------------
@@ -125,14 +126,13 @@ def root():
 anomaly_model = joblib.load(ANOMALY_MODEL_PATH)
 
 @app.get("/predict/{company_id}")
-def predict(company_id: str, request: Request):
-    tenant_id = request.state.tenant_id
+def predict(company_id: str, user=Depends(get_current_user)):
+    tenant_id = user["tenant_id"]  # from JWT + DB
     companies = fetch_companies(tenant_id)
     company = next((c for c in companies if c["company_id"] == company_id), None)
     if not company:
         raise HTTPException(status_code=404, detail=f"Company {company_id} not found")
 
-    # Prepare features
     X = pd.DataFrame([{
         "total_assets": company["total_assets"],
         "total_debt": company["total_debt"],
@@ -141,11 +141,8 @@ def predict(company_id: str, request: Request):
         "cash_and_interest_securities": company["cash_and_interest_securities"]
     }])
 
-    # Risk prediction
     risk_score = model.predict_proba(X)[0][1] if hasattr(model, "predict_proba") else model.predict(X)[0]
-
-    # Anomaly detection
-    anomaly_flag = anomaly_model.predict(X)[0]  # -1 = anomaly, 1 = normal
+    anomaly_flag = anomaly_model.predict(X)[0]
 
     return {
         "company_id": company_id,
