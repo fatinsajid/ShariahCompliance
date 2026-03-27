@@ -621,7 +621,7 @@ async def supabase_auth_middleware(request: Request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # your Vite dev URL
+    allow_origins=["http://localhost:5173","https://shariahcompliance.onrender.com" ],  # your Vite dev URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
