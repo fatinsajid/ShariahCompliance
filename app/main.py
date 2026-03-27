@@ -12,6 +12,9 @@ from jose import jwt, JWTError
 from dal.db_connector import (
     get_user_tenant,
     fetch_companies,
+    fetch_results,
+    fetch_result_by_company,
+    fetch_audit_logs,
     save_company,
     save_result,
     populate_features
@@ -494,24 +497,12 @@ def dashboard_root():
 
 @app.get("/dashboard/overview")
 def dashboard_overview(request: Request):
-    # Use tenant from request or fallback to demo
-    tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
+    tenant_id = getattr(request.state, "tenant_id", None)
 
-    if tenant_id == "demo-tenant":
-        return {
-            "totalCompanies": 12,
-            "compliancePercent": 75,
-            "nonCompliancePercent": 25,
-            "avgViolations": 1.8,
-            "riskDistribution": [0.1, 0.3, 0.5, 0.2, 0.7, 0.9, 0.15, 0.4, 0.8, 0.6, 0.25, 0.35],
-            "recentAuditLogs": [
-                {"company": "Company A", "status": "Compliant", "violations": 0, "date": "2026-03-25"},
-                {"company": "Company B", "status": "Non-Compliant", "violations": 2, "date": "2026-03-24"},
-            ]
-        }
+    if not tenant_id:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
     companies = fetch_companies(tenant_id)
-    results = fetch_results(tenant_id)
 
     total = len(companies)
     compliant = 0
@@ -520,6 +511,16 @@ def dashboard_overview(request: Request):
     risk_scores = []
     recent_audit_logs = []
 
+    if total == 0:
+        return {
+            "totalCompanies": 0,
+            "compliancePercent": 0,
+            "nonCompliancePercent": 0,
+            "avgViolations": 0,
+            "riskDistribution": [],
+            "recentAuditLogs": []
+        }
+
     for c in companies:
         result = fetch_result_by_company(c["company_id"], tenant_id)
 
@@ -527,6 +528,7 @@ def dashboard_overview(request: Request):
             continue
 
         status_lower = result["status"].lower()
+
         if status_lower == "compliant":
             compliant += 1
         else:
@@ -534,26 +536,26 @@ def dashboard_overview(request: Request):
 
         violations_count = len(result.get("violations", []))
         total_violations += violations_count
+
         risk_scores.append(result.get("risk_score", 0))
 
         recent_audit_logs.append({
-            "company": c["name"],
+            "company": c.get("name", "Unknown"),
             "status": result["status"].capitalize(),
             "violations": violations_count,
             "date": result.get("date", "N/A")
         })
 
-    avg_violations = total_violations / total if total else 0
+    avg_violations = total_violations / total
 
     return {
         "totalCompanies": total,
-        "compliancePercent": round((compliant / total * 100) if total else 0, 1),
-        "nonCompliancePercent": round((non_compliant / total * 100) if total else 0, 1),
+        "compliancePercent": round(compliant / total * 100, 1),
+        "nonCompliancePercent": round(non_compliant / total * 100, 1),
         "avgViolations": round(avg_violations, 1),
         "riskDistribution": risk_scores,
         "recentAuditLogs": recent_audit_logs
     }
-
 @app.get("/dashboard/audit-logs")
 def dashboard_audit_logs(request: Request):
     tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
