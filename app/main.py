@@ -3,7 +3,7 @@ import json
 import io
 import joblib
 import pandas as pd
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Depends
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Depends, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
@@ -12,7 +12,6 @@ from jose import jwt, JWTError
 from dal.db_connector import (
     get_user_tenant,
     fetch_companies,
-    fetch_results,
     fetch_result_by_company,
     fetch_audit_logs,
     save_company,
@@ -27,6 +26,7 @@ from services.explainability_engine import generate_explanation
 from services.audit_logger import log_compliance_decision
 from app.routes.dashboard import router as dashboard_router
 from app.auth import get_current_user
+from router.app_router import app_router
 # ----------------------------
 # 1️⃣ FastAPI instance
 # ----------------------------
@@ -593,7 +593,7 @@ async def supabase_auth_middleware(request: Request, call_next):
     """
     auth_header = request.headers.get("Authorization")
     tenant_id = None
-
+    app.include_router(dashboard_router)
     # 🔒 Decode JWT if provided
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
@@ -626,10 +626,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(app_router)
 
 # Add middleware
 app.middleware("http")(supabase_auth_middleware)
 
-# Include routers
-app.include_router(dashboard_router, prefix="/dashboard")
-app.include_router(dashboard_router, prefix="/company-details")
