@@ -541,7 +541,7 @@ def dashboard_overview(request: Request):
             "violations": violations_count,
             "date": result.get("date", "N/A")
         })
-
+ 
     avg_violations = total_violations / total if total > 0 else 0
 
     return {
