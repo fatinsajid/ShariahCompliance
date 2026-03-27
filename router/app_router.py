@@ -11,13 +11,21 @@ app_router = APIRouter()
 # ------------------------------
 # Supabase auth placeholder
 # ------------------------------
+# async def get_current_user(request: Request) -> Dict:
+#     token = request.headers.get("Authorization")
+#     if not token:
+#         raise HTTPException(status_code=401, detail="Unauthorized")
+#     # TODO: Verify token with Supabase
+#     return {"user_id": "user123", "email": "user@example.com"}
 async def get_current_user(request: Request) -> Dict:
     token = request.headers.get("Authorization")
+
+    print("AUTH HEADER:", token)  # 👈 DEBUG
+
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    # TODO: Verify token with Supabase
-    return {"user_id": "user123", "email": "user@example.com"}
 
+    return {"user_id": "user123", "email": "user@example.com"}
 
 # ------------------------------
 # Dashboard Overview with DB
