@@ -626,6 +626,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.middleware("http")(supabase_auth_middleware)
 app.include_router(app_router)
 
 # Add middleware
