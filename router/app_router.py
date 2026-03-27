@@ -11,30 +11,23 @@ app_router = APIRouter()
 # ------------------------------
 # Supabase auth placeholder
 # ------------------------------
-# async def get_current_user(request: Request) -> Dict:
-#     token = request.headers.get("Authorization")
-#     if not token:
-#         raise HTTPException(status_code=401, detail="Unauthorized")
-#     # TODO: Verify token with Supabase
-#     return {"user_id": "user123", "email": "user@example.com"}
 async def get_current_user(request: Request) -> Dict:
     token = request.headers.get("Authorization")
-
-    print("AUTH HEADER:", token)  # 👈 DEBUG
-
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
-
+    # TODO: Verify token with Supabase
     return {"user_id": "user123", "email": "user@example.com"}
+
 
 # ------------------------------
 # Dashboard Overview with DB
 # ------------------------------
 @app_router.get("/dashboard/overview")
 async def dashboard_overview(
-    user: Dict = Depends(get_current_user),
+    request: Request,
     db: Session = Depends(get_db_session),
 ):
+    tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
     # Total companies
     total_companies = db.execute("SELECT COUNT(*) FROM companies").scalar() or 0
 
