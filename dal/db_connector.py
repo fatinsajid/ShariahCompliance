@@ -13,6 +13,7 @@ import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+
 # -----------------------------
 # 🔴 LOAD ENV FIRST (CRITICAL FIX)
 # -----------------------------
@@ -32,10 +33,15 @@ logger = logging.getLogger(__name__)
 # SQLAlchemy Setup
 # -----------------------------
 engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(bind=engine)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def get_db_session():
+    try:
+        yield get_db_session()
+    finally:
+        db.close()
     return SessionLocal()
+
 
 # -----------------------------
 # Psycopg2 Pool
@@ -472,3 +478,4 @@ def insert_audit_log(log_entry: dict):
     log_entry.setdefault("created_at", datetime.utcnow())
     # Optional: you could append to an in-memory list for testing
     # _audit_logs.append(log_entry)
+
