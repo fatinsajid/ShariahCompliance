@@ -510,6 +510,7 @@ def dashboard_overview(request: Request):
     risk_scores = []
     recent_audit_logs = []
 
+
     if total == 0:
         re
 @app.get("/dashboard/audit-logs")
