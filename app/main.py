@@ -510,9 +510,48 @@ def dashboard_overview(request: Request):
     risk_scores = []
     recent_audit_logs = []
 
-
     if total == 0:
-        re
+        return {
+            "totalCompanies": 0,
+            "compliancePercent": 0,
+            "nonCompliancePercent": 0,
+            "avgViolations": 0,
+            "riskDistribution": [],
+            "recentAuditLogs": []
+        }
+
+    for c in companies:
+        result = fetch_result_by_company(c["company_id"], tenant_id)
+        if not result:
+            continue
+
+        status_lower = result["status"].lower()
+        if status_lower == "compliant":
+            compliant += 1
+        else:
+            non_compliant += 1
+
+        violations_count = len(result.get("violations", []))
+        total_violations += violations_count
+        risk_scores.append(result.get("risk_score", 0))
+
+        recent_audit_logs.append({
+            "company": c.get("name", "Unknown"),
+            "status": result["status"].capitalize(),
+            "violations": violations_count,
+            "date": result.get("date", "N/A")
+        })
+
+    avg_violations = total_violations / total if total > 0 else 0
+
+    return {
+        "totalCompanies": total,
+        "compliancePercent": round(compliant / total * 100, 1),
+        "nonCompliancePercent": round(non_compliant / total * 100, 1),
+        "avgViolations": round(avg_violations, 1),
+        "riskDistribution": risk_scores,
+        "recentAuditLogs": recent_audit_logs
+    }
 @app.get("/dashboard/audit-logs")
 def dashboard_audit_logs(request: Request):
     tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
