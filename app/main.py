@@ -14,6 +14,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from jose import jwt, JWTError
 from pydantic import BaseModel
 from psycopg2 import connect, OperationalError
+from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 
 # DAL
@@ -44,6 +45,7 @@ from services.audit_logger import log_compliance_decision
 from app.routes.dashboard import router as dashboard_router
 from app.auth import get_current_user
 from router.app_router import app_router
+from contextlib import asynccontextmanager
 
 router = APIRouter()
 
@@ -87,12 +89,25 @@ except Exception as e:
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-try:
-    conn = connect(DATABASE_URL)
-    print("Database connected successfully")
-except OperationalError as e:
-    print("DB connection error: {e}")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: connect to DB
+    try:
+        app.state.db_conn = connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        print("✅ Database connected")
+    except OperationalError as e:
+        app.state.db_conn = None
+        print(f"❌ DB connection error: {e}")
 
+    yield  # Control returns to FastAPI here
+
+    # Shutdown: close DB
+    db_conn = getattr(app.state, "db_conn", None)
+    if db_conn:
+        db_conn.close()
+        print("Database connection closed")
+
+app = FastAPI(lifespan=lifespan)
 # ----------------------------
 # 3️⃣ Utility: Role Check
 # ----------------------------
@@ -429,50 +444,50 @@ def dashboard_root():
 
 @app.get("/dashboard/overview")
 def dashboard_overview(request: Request):
+    db_conn = getattr(request.app.state, "db_conn", None)
+    if not db_conn:
+        return {"error": "Database not connected"}
+
+    tenant_id = os.getenv("TENANT_ID", "tenant-123")  # fallback to .env value
+
     try:
-        tenant_id = getattr(request.state, "tenant_id", None)
-        if tenant_id is None:
-            # fallback: pick first tenant from DB
-            conn = get_db_connection()
-            cur = conn.cursor()
-            cur.execute("SELECT tenant_id FROM tenants LIMIT 1")  # replace 'tenants' with your table
-            row = cur.fetchone()
-            tenant_id = str(row[0]) if row else None
-            cur.close()
-            conn.close()
-
-        if not tenant_id:
-            return {"error": "No tenant found"}
-
-        # Fetch dashboard data
-        conn = get_db_connection()
-        cur = conn.cursor()
-
-        cur.execute(
-            "SELECT COUNT(*) FROM companies WHERE tenant_id = %s", (tenant_id,)
-        )
-        total_companies = cur.fetchone()[0]
-
-        cur.execute(
-            "SELECT AVG(violations) FROM companies WHERE tenant_id = %s", (tenant_id,)
-        )
-        avg_violations = cur.fetchone()[0] or 0
-
-        cur.close()
-        conn.close()
-
-        return {
-            "totalCompanies": total_companies,
-            "avgViolations": avg_violations,
-            "tenantId": tenant_id
-        }
-
+        with db_conn.cursor() as cur:
+            # Example query for your dashboard
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_companies,
+                    AVG(risk_score) AS avg_violations,
+                    SUM(CASE WHEN compliant THEN 1 ELSE 0 END) AS compliant_count,
+                    SUM(CASE WHEN NOT compliant THEN 1 ELSE 0 END) AS non_compliant_count
+                FROM companies
+                WHERE tenant_id = %s
+                """,
+                (tenant_id,),
+            )
+            result = cur.fetchone()
     except Exception as e:
-        # 👇 Log full exception for Render logs
-        import traceback
-        print("Dashboard endpoint error:", e)
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"error": f"Failed to fetch dashboard: {e}"}
+
+    if not result:
+        return {"message": "No data found for tenant"}
+
+    # Format response
+    total = result.get("total_companies", 0) or 0
+    compliant = result.get("compliant_count", 0) or 0
+    non_compliant = result.get("non_compliant_count", 0) or 0
+    avg_violations = float(result.get("avg_violations", 0) or 0)
+
+    compliance_percent = (compliant / total * 100) if total else 0
+    non_compliance_percent = (non_compliant / total * 100) if total else 0
+
+    return {
+        "totalCompanies": total,
+        "compliancePercent": compliance_percent,
+        "nonCompliancePercent": non_compliance_percent,
+        "avgViolations": avg_violations,
+    }
+
 @app.get("/dashboard/audit-logs")
 def dashboard_audit_logs(request: Request):
     tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
