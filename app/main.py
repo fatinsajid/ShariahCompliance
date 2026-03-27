@@ -586,22 +586,10 @@ def get_companies(request: Request):
     }
 @app.middleware("http")
 async def supabase_auth_middleware(request: Request, call_next):
-    """
-    Middleware to:
-    1. Authenticate JWT for protected routes
-    2. Set request.state.tenant_id for endpoints
-    3. Fallback to 'demo-tenant' for dev/public routes
-    """
-
-    # ✅ PUBLIC ROUTES (no auth required)
-    public_routes = ["/health", "/", "/docs", "/openapi.json"]
-    if any(request.url.path.startswith(p) for p in public_routes):
-        return await call_next(request)
-
     auth_header = request.headers.get("Authorization")
     tenant_id = None
 
-    # 🔒 AUTH REQUIRED IF JWT PROVIDED
+    # 🔒 Decode JWT if provided
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         try:
@@ -611,19 +599,18 @@ async def supabase_auth_middleware(request: Request, call_next):
                 algorithms=["HS256"],
                 audience="authenticated"
             )
-            tenant_id = payload.get("sub")  # Use 'sub' as tenant_id
+            tenant_id = payload.get("sub")
         except JWTError:
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Invalid or expired token"}
             )
 
-    # ⚡ DEV / DEMO FALLBACK
-    if not tenant_id:
-        # Only fallback for dashboard and other demo routes
-        if request.url.path.startswith("/dashboard") or request.url.path.startswith("/companies"):
-            tenant_id = "demo-tenant"
+    # ⚡ Demo fallback for dashboard endpoints
+    if not tenant_id and request.url.path.startswith("/dashboard"):
+        tenant_id = "demo-tenant"
 
+    # Set tenant_id for endpoint consumption
     request.state.tenant_id = tenant_id
     return await call_next(request)
 
