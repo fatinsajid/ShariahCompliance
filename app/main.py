@@ -420,11 +420,10 @@ def dashboard_root():
 
 @app.get("/dashboard/overview")
 def dashboard_overview(request: Request):
-    # safe tenant_id handling
-    tenant_id = getattr(request.state, "tenant_id", None)
-    if tenant_id is None:
-        # fallback: pick first tenant from DB
-        try:
+    try:
+        tenant_id = getattr(request.state, "tenant_id", None)
+        if tenant_id is None:
+            # fallback: pick first tenant from DB
             conn = get_db_connection()
             cur = conn.cursor()
             cur.execute("SELECT tenant_id FROM tenants LIMIT 1")  # replace 'tenants' with your table
@@ -432,21 +431,14 @@ def dashboard_overview(request: Request):
             tenant_id = str(row[0]) if row else None
             cur.close()
             conn.close()
-        except Exception as e:
-            print("Error fetching default tenant:", e)
-            raise HTTPException(status_code=500, detail="No tenant found")
 
-    if not tenant_id:
-        raise HTTPException(status_code=404, detail="Tenant ID missing")
+        if not tenant_id:
+            return {"error": "No tenant found"}
 
-    # ---------------------
-    # Fetch dashboard data safely
-    # ---------------------
-    try:
+        # Fetch dashboard data
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Example queries (replace with your actual tables)
         cur.execute(
             "SELECT COUNT(*) FROM companies WHERE tenant_id = %s", (tenant_id,)
         )
@@ -467,9 +459,11 @@ def dashboard_overview(request: Request):
         }
 
     except Exception as e:
-        print("Error fetching dashboard data:", e)
+        # 👇 Log full exception for Render logs
+        import traceback
+        print("Dashboard endpoint error:", e)
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/dashboard/audit-logs")
 def dashboard_audit_logs(request: Request):
     tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
