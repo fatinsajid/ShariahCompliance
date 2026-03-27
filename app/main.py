@@ -13,7 +13,7 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from jose import jwt, JWTError
 from pydantic import BaseModel
-import psycopg2
+from psycopg2 import connect, OperationalError
 from dotenv import load_dotenv
 
 # DAL
@@ -45,6 +45,7 @@ from app.routes.dashboard import router as dashboard_router
 from app.auth import get_current_user
 from router.app_router import app_router
 
+router = APIRouter()
 
 load_dotenv()  # loads .env file
 
@@ -83,6 +84,14 @@ try:
 except Exception as e:
     anomaly_model = None
     print(f"❌ Anomaly model failed to load: {e}")
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+try:
+    conn = connect(DATABASE_URL)
+    print("Database connected successfully")
+except OperationalError as e:
+    print(f"DB connection error: {e}")
 
 # ----------------------------
 # 3️⃣ Utility: Role Check
