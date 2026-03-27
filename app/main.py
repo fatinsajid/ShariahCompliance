@@ -503,7 +503,6 @@ def dashboard_overview(request: Request):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     companies = fetch_companies(tenant_id)
-
     total = len(companies)
     compliant = 0
     non_compliant = 0
@@ -512,50 +511,7 @@ def dashboard_overview(request: Request):
     recent_audit_logs = []
 
     if total == 0:
-        return {
-            "totalCompanies": 0,
-            "compliancePercent": 0,
-            "nonCompliancePercent": 0,
-            "avgViolations": 0,
-            "riskDistribution": [],
-            "recentAuditLogs": []
-        }
-
-    for c in companies:
-        result = fetch_result_by_company(c["company_id"], tenant_id)
-
-        if not result:
-            continue
-
-        status_lower = result["status"].lower()
-
-        if status_lower == "compliant":
-            compliant += 1
-        else:
-            non_compliant += 1
-
-        violations_count = len(result.get("violations", []))
-        total_violations += violations_count
-
-        risk_scores.append(result.get("risk_score", 0))
-
-        recent_audit_logs.append({
-            "company": c.get("name", "Unknown"),
-            "status": result["status"].capitalize(),
-            "violations": violations_count,
-            "date": result.get("date", "N/A")
-        })
-
-    avg_violations = total_violations / total
-
-    return {
-        "totalCompanies": total,
-        "compliancePercent": round(compliant / total * 100, 1),
-        "nonCompliancePercent": round(non_compliant / total * 100, 1),
-        "avgViolations": round(avg_violations, 1),
-        "riskDistribution": risk_scores,
-        "recentAuditLogs": recent_audit_logs
-    }
+        re
 @app.get("/dashboard/audit-logs")
 def dashboard_audit_logs(request: Request):
     tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
@@ -590,43 +546,47 @@ def get_companies(request: Request):
     }
 @app.middleware("http")
 async def supabase_auth_middleware(request: Request, call_next):
+    """
+    Middleware to:
+    1. Authenticate JWT for protected routes
+    2. Set request.state.tenant_id for endpoints
+    3. Fallback to 'demo-tenant' for dev/public routes
+    """
 
     # ✅ PUBLIC ROUTES (no auth required)
-    if (
-        request.url.path.startswith("/dashboard") or
-        request.url.path.startswith("/companies") or
-        request.url.path in ["/health", "/", "/docs", "/openapi.json"]
-    ):
+    public_routes = ["/health", "/", "/docs", "/openapi.json"]
+    if any(request.url.path.startswith(p) for p in public_routes):
         return await call_next(request)
 
-    # 🔒 AUTH REQUIRED BELOW
     auth_header = request.headers.get("Authorization")
+    tenant_id = None
 
-    if not auth_header or not auth_header.startswith("Bearer "):
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Missing or invalid Authorization header"}
-        )
+    # 🔒 AUTH REQUIRED IF JWT PROVIDED
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated"
+            )
+            tenant_id = payload.get("sub")  # Use 'sub' as tenant_id
+        except JWTError:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid or expired token"}
+            )
 
-    token = auth_header.split(" ")[1]
+    # ⚡ DEV / DEMO FALLBACK
+    if not tenant_id:
+        # Only fallback for dashboard and other demo routes
+        if request.url.path.startswith("/dashboard") or request.url.path.startswith("/companies"):
+            tenant_id = "demo-tenant"
 
-    try:
-        payload = jwt.decode(
-            token,
-            SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            audience="authenticated"
-        )
-
-        request.state.tenant_id = payload.get("sub")
-
-    except JWTError:
-        return JSONResponse(
-            status_code=401,
-            content={"detail": "Invalid or expired token"}
-        )
-
+    request.state.tenant_id = tenant_id
     return await call_next(request)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],  # your Vite dev URL
