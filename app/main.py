@@ -606,13 +606,14 @@ async def supabase_auth_middleware(request: Request, call_next):
                 content={"detail": "Invalid or expired token"}
             )
 
-    # ⚡ Demo fallback for dashboard endpoints
-    if not tenant_id and request.url.path.startswith("/dashboard"):
+    # ⚡ Public dashboard routes get demo tenant if no JWT
+    if request.url.path.startswith("/dashboard") and tenant_id is None:
         tenant_id = "demo-tenant"
 
-    # Set tenant_id for endpoint consumption
+    # Set tenant_id for endpoints
     request.state.tenant_id = tenant_id
     return await call_next(request)
+
 
 app.add_middleware(
     CORSMiddleware,
