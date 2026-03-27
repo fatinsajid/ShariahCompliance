@@ -91,7 +91,7 @@ try:
     conn = connect(DATABASE_URL)
     print("Database connected successfully")
 except OperationalError as e:
-    print(f"DB connection error: {e}")
+    print("DB connection error: {e}")
 
 # ----------------------------
 # 3️⃣ Utility: Role Check
