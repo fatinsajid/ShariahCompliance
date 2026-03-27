@@ -541,7 +541,7 @@ def dashboard_overview(request: Request):
             "violations": violations_count,
             "date": result.get("date", "N/A")
         })
- 
+
     avg_violations = total_violations / total if total > 0 else 0
 
     return {
@@ -586,6 +586,11 @@ def get_companies(request: Request):
     }
 @app.middleware("http")
 async def supabase_auth_middleware(request: Request, call_next):
+    """
+    Handles authentication via Supabase JWT.
+    Sets request.state.tenant_id for all routes.
+    Dashboard is treated as public and uses demo-tenant if no JWT is provided.
+    """
     auth_header = request.headers.get("Authorization")
     tenant_id = None
 
@@ -606,11 +611,10 @@ async def supabase_auth_middleware(request: Request, call_next):
                 content={"detail": "Invalid or expired token"}
             )
 
-    # ⚡ Public dashboard routes get demo tenant if no JWT
+    # ⚡ Public routes fallback
     if request.url.path.startswith("/dashboard") and tenant_id is None:
-        tenant_id = "demo-tenant"
+        tenant_id = "demo-tenant"  # <-- ensures dashboard works without login
 
-    # Set tenant_id for endpoints
     request.state.tenant_id = tenant_id
     return await call_next(request)
 
