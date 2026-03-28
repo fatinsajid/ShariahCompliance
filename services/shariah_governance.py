@@ -11,7 +11,7 @@ def get_active_fatwa(rule_code: str, tenant_id: str):
     Return the latest active fatwa for a given rule and tenant.
     Returns: (fatwa_id, version, ruling) or None
     """
-    fatwas = fetch_fatwa_by_rule(rule_code, tenant_id)
+    fatwas = fetch_fatwa_by_id(rule_code, tenant_id)
     if not fatwas:
         return None
 
