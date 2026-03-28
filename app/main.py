@@ -784,7 +784,7 @@ async def analyze_bulk(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/analyze/single")
-async def analyze_single_company(data: SingleCompanyRequest):
+async def analyze_single_company(data: SingleCompanyRequest, request: Request):
     try:
         db = SessionLocal()
         tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
