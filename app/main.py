@@ -582,17 +582,62 @@ def get_kpis(request: Request):
 # ----------------------------
 # 17️⃣ Companies
 # ----------------------------
+# -----------------------------
+# Companies endpoint
+# -----------------------------
 @app.get("/companies")
 def get_companies(request: Request):
-    tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
-    # Placeholder: Supabase fetch
-    return {
-        "companies": [
-            {"company_id": 1, "name": "ABC Corp", "status": "Compliant", "risk_score": 0.3},
-            {"company_id": 2, "name": "XYZ Ltd", "status": "Non-Compliant", "risk_score": 0.85},
-        ]
-    }
+    tenant_id = getattr(request.state, "tenant_id", "demo-tenant")  # optional tenant support
 
+    try:
+        response = supabase.table("companies").select("*").execute()
+        companies = response.data
+        if not companies:
+            return {"companies": []}
+        return {"companies": companies}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# -----------------------------
+# Compliance Results endpoint
+# -----------------------------
+@app.get("/compliance_results/{company_id}")
+def get_compliance_by_company(company_id: int, request: Request):
+    """
+    Fetch compliance details for a single company by ID
+    Includes company name from companies table
+    """
+    try:
+        # Join-like fetch: get the compliance result for company_id
+        response = (
+            supabase.table("compliance_results")
+            .select("company_id, risk_score, compliance_status, violations, explanation")
+            .eq("company_id", company_id)
+            .execute()
+        )
+        results = response.data
+
+        if not results:
+            return {"compliance": None}  # fallback for frontend
+
+        compliance_data = results[0]
+
+        # Fetch company name
+        company_resp = (
+            supabase.table("companies")
+            .select("name")
+            .eq("company_id", company_id)
+            .maybe_single()
+            .execute()
+        )
+
+        company_name = company_resp.data["name"] if company_resp.data else "Unknown Company"
+        compliance_data["company_name"] = company_name
+
+        return {"compliance": compliance_data}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 # ----------------------------
 # 18️⃣ Events
 # ----------------------------
