@@ -12,6 +12,7 @@ from sqlalchemy import text
 import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
+from supabase import create_client, Client
 
 
 # -----------------------------
@@ -25,7 +26,7 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 if not DATABASE_URL:
     raise RuntimeError("DATABASE_URL is not set")
-
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
