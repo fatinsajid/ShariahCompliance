@@ -3,7 +3,7 @@
 # ----------------------------
 import os
 import io
-import uuid
+from uuid import uuid4
 import joblib
 import pandas as pd
 from datetime import datetime
@@ -786,12 +786,14 @@ async def analyze_bulk(file: UploadFile = File(...)):
 @app.post("/api/analyze/single")
 async def analyze_single_company(data: SingleCompanyRequest):
     try:
-        company_id = str(uuid.uuid4())
-        # Prepare payload for the analysis engine
-        company_payload = {
+        db = SessionLocal()
+
+        company_id = str(uuid4())
+
+        payload = {
             "company_id": company_id,
             "company_name": data.company_name,
-            "company_industry": data.company_industry,
+            "sector": data.company_industry,
             "total_assets": data.total_assets,
             "total_debt": data.total_debt,
             "total_income": data.total_income,
@@ -799,39 +801,46 @@ async def analyze_single_company(data: SingleCompanyRequest):
             "cash_and_interest_securities": data.cash_and_interest_securities,
         }
 
-        # Call your analysis engine
-        result = FinalDecisionEngine().analyze_single_company(company_payload)
+        result = FinalDecisionEngine().analyze_single_company(payload)
 
-        # Insert into compliance_audit_log
-        db = get_db_session()
         audit_entry = ComplianceAuditLog(
-            audit_id=str(uuid.uuid4()),
-            company_id = str(uuid.uuid4()),
+            audit_id=str(uuid4()),
+            company_id=company_id,
             company_name=data.company_name,
             company_industry=data.company_industry,
             created_at=datetime.utcnow(),
-            audit_details=result.get("audit_details"),
-            violations_count=result.get("violations_count"),
-            risk_score=result.get("risk_score"),
-            explanation=result.get("explanation"),
-            scholar_reviews=result.get("scholar_reviews"),
-            anomaly_flag=result.get("anomaly_flag"),
-            ttotal_assets=data.total_assets,
+            audit_details=result,
+            violations_count=result.get("violations_count", 0),
+            risk_score=result.get("risk_score", 0),
+            explanation=result.get("explanation", ""),
+            scholar_reviews=result.get("scholar_reviews", []),
+            anomaly_flag=result.get("anomaly_flag", False),
+            total_assets=data.total_assets,
             total_debt=data.total_debt,
             total_income=data.total_income,
             non_halal_income=data.non_halal_income,
             cash_and_interest_securities=data.cash_and_interest_securities,
-            compliance_status=result.get("compliance_status"),
-            rule_code=result.get("rule_code"),
-            fatwa_version=result.get("fatwa_version"),
+            compliance_status=result.get("compliance_status", "unknown"),
+            rule_code=result.get("rule_code", "SHARIAH_SCREENING"),
+            fatwa_version=result.get("fatwa_version", 1),
             triggered_by="single_analysis"
         )
+
         db.add(audit_entry)
         db.commit()
+        db.close()
 
-        return result
+        return {"company_id": company_id, "result": result}
+
 
     except Exception as e:
+
+        import traceback
+
+        print("🔥 FULL ERROR TRACE:")
+
+        traceback.print_exc()
+
         raise HTTPException(status_code=500, detail=str(e))
 # ----------------------------
 # 19️⃣ Run
