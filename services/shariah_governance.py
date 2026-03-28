@@ -9,14 +9,12 @@ from dal.db_connector import fetch_fatwa_by_id
 def get_active_fatwa(rule_code: str, tenant_id: str):
     """
     Return the latest active fatwa for a given rule and tenant.
-    Returns: (fatwa_id, version, ruling) or None
+    Returns: (fatwa_id, fatwa_version, ruling) or None
     """
-    fatwas = fetch_fatwa_by_id(rule_code, tenant_id)
-    if not fatwas:
+    fatwa = fetch_fatwa_by_id(rule_code, tenant_id)
+    if not fatwa:
         return None
 
-    # pick the latest version
-    fatwa = max(fatwas, key=lambda f: f["fatwa_version"])
     return fatwa["fatwa_id"], fatwa["fatwa_version"], fatwa["ruling"]
 
 def fatwa_is_approved(fatwa_id: str, tenant_id: str) -> bool:

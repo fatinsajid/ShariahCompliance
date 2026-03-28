@@ -442,14 +442,31 @@ def fetch_audit_logs(tenant_id: str):
 # 🔹 Fatwa Access
 # -----------------------------
 def fetch_fatwa_by_id(fatwa_id: str, tenant_id: str):
-    """ Fetch a fatwa record for a tenant """
+    """
+    Fetch a fatwa record for a tenant from JSONB column.
+    Maps JSON keys to expected schema.
+    """
+    if tenant_id is None:
+        tenant_id = "demo-tenant"
+
     res = supabase.table("fatwas").select(
-        "fatwa_id, title, description, fatwa_version, rule_code, ruling"
-    ).eq("fatwa_id", fatwa_id).eq("tenant_id", tenant_id).execute()
+        "data->>fatwa_id, data->>title, data->>description, data->>fatwa_version, data->>rule_code, data->>ruling"
+    ).eq("data->>fatwa_id", fatwa_id).eq("tenant_id", tenant_id).execute()
+
     data = res.data
-    if data:
-        return data[0]
-    return None
+    if not data:
+        return None
+
+    record = data[0]
+    # normalize keys
+    return {
+        "fatwa_id": record.get("data->>fatwa_id"),
+        "title": record.get("data->>title"),
+        "description": record.get("data->>description"),
+        "fatwa_version": record.get("data->>fatwa_version"),
+        "rule_code": record.get("data->>rule_code"),
+        "ruling": record.get("data->>ruling"),
+    }
 def fetch_fatwa_by_rule(rule_code: str, tenant_id: str):
     """Fetch all fatwas for a given rule and tenant"""
     response = (
