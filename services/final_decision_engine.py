@@ -77,7 +77,7 @@ class FinalDecisionEngine:
         # ----------------------------
         # 3️⃣ Anomaly Detection
         # ----------------------------
-        anomalies = detect_anomalies(company)
+        anomalies = detect_anomaly(company)
 
         # ----------------------------
         # 4️⃣ Explainability

@@ -3,9 +3,10 @@
 # ----------------------------
 import os
 import io
-import json
+import uuid
 import joblib
 import pandas as pd
+from datetime import datetime
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Depends, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse, RedirectResponse
@@ -46,7 +47,7 @@ from app.routes.dashboard import router as dashboard_router
 from app.auth import get_current_user
 from router.app_router import app_router
 from contextlib import asynccontextmanager
-
+from services.final_decision_engine import FinalDecisionEngine
 router = APIRouter()
 
 load_dotenv()  # loads .env file
@@ -89,6 +90,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ----------------------------
+# Helper function: Run analysis + insert into audit log
+# ----------------------------
+def analyze_and_log_company(tenant_id: str, company: dict, triggered_by: str) -> dict:
+    """
+    Run governance analysis on a single company and save result in compliance_audit_log
+    """
+    engine = FinalDecisionEngine(tenant_id)
+    result = engine.evaluate_company(company)
+
+    audit_record = {
+        "audit_id": str(uuid.uuid4()),
+        "tenant_id": tenant_id,
+        "company_id": company.get("company_id"),
+        "rule_code": "SHARIAH_SCREENING",
+        "fatwa_version": 1,
+        "compliance_status": result.get("status"),
+        "triggered_by": triggered_by,
+        "created_at": datetime.utcnow(),
+        "company_name": company.get("company_name"),
+        "company_industry": company.get("sector"),
+        "audit_details": result,
+        "violations_count": len(result.get("violations", [])),
+        "risk_score": result.get("risk_score"),
+        "explanation": str(result.get("explanation")),
+        "scholar_reviews": result.get("scholar_reviews"),
+        "anomaly_flag": str(result.get("anomalies", {}).get("anomaly_flag")),
+        "total_assets": company.get("total_assets"),
+        "total_debt": company.get("total_debt"),
+        "total_income": company.get("total_income"),
+        "non_halal_income": company.get("non_halal_income"),
+        "cash_and_interest_securities": company.get("cash_and_interest_securities"),
+    }
+
+    insert_audit_log(audit_record)
+    return result
 # ----------------------------
 # 2️⃣ Environment & Models
 # ----------------------------
@@ -264,7 +302,7 @@ def compliance(company_id: str, request: Request):
     engine = FinalDecisionEngine(tenant_id)
     result = engine.evaluate_company(company)
 
-    reviews = fetch_scholar_reviews(company_id, tenant_id)
+    reviews = fetch_scholar_approvals(company_id, tenant_id)
     result["scholar_reviews"] = reviews
     return result
 
@@ -362,7 +400,15 @@ def screen_company(payload: dict, request: Request):
             fatwa_version=fatwa_version,
             status=status
         )
-
+    result_payload = {
+        "risk_score": float(risk_score),
+        "status": status,
+        "violations": violations,
+        "explanation": explanation,
+        "governance_flag": governance_flag,
+        "scholar_reviews": reviews
+    }
+    save_full_pipeline(company, tenant_id, result_payload)
     # Save & update features
     save_full_pipeline(company, tenant_id, result_payload)
 
@@ -649,7 +695,44 @@ def get_events(request: Request):
         {"id": 1, "event": "Company C1 compliance check", "status": "ok"},
         {"id": 2, "event": "Company C2 screening", "status": "warning"},
     ]
+# ----------------------------
+# Single company audit endpoint
+# ----------------------------
+@app.post("/audit/single/{company_id}")
+def audit_single_company(company_id: str, request: Request):
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        return JSONResponse(status_code=401, content={"detail": "Tenant not found"})
 
+    # fetch company data from DB or service
+    company = fetch_company_by_id(tenant_id, company_id)
+    if not company:
+        return JSONResponse(status_code=404, content={"detail": f"Company {company_id} not found"})
+
+    result = analyze_and_log_company(tenant_id, company, triggered_by="single_screen")
+    return result
+
+# ----------------------------
+# Bulk audit endpoint
+# ----------------------------
+@app.post("/audit/bulk")
+def audit_bulk(request: Request, file: UploadFile = File(...)):
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        return JSONResponse(status_code=401, content={"detail": "Tenant not found"})
+
+    if not file.filename.endswith(".csv"):
+        return JSONResponse(status_code=400, content={"detail": "Only CSV files supported"})
+
+    df = pd.read_csv(file.file)
+    results = []
+
+    for _, row in df.iterrows():
+        company = row.to_dict()
+        result = analyze_and_log_company(tenant_id, company, triggered_by="bulk_screen")
+        results.append({"company_id": company.get("company_id"), "result": result})
+
+    return {"processed": len(results), "results": results}
 # ----------------------------
 # 19️⃣ Run
 # ----------------------------

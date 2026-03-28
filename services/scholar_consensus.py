@@ -30,11 +30,11 @@ def compute_scholar_consensus(reviews: list) -> dict:
     total = len(reviews)
 
     weighted_score = sum(
-        r["weight"] * (1 if r["decision"] == "APPROVED" else 0)
+        r.get("weight", 1) * (1 if r["decision"] == "APPROVED" else 0)
         for r in reviews
     )
+    total_weight = sum(r.get("weight", 1) for r in reviews)
 
-    total_weight = sum(r["weight"] for r in reviews)
 
     ratio = weighted_score / total_weight
 
