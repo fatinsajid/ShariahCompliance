@@ -19,6 +19,7 @@ from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 from database import SessionLocal
 
+
 # DAL
 from dal.db_connector import (
     get_user_tenant,
