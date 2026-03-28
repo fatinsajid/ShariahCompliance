@@ -364,36 +364,51 @@ def fetch_companies(tenant_id: str) -> List[Dict]:
 # -----------------------------
 # Compliance Results
 # -----------------------------
-def save_result(company_id: str, tenant_id: str, status: str, violations: list):
-    """Save compliance analysis results to Supabase"""
+def save_result(
+    company_id: str,
+    tenant_id: str,
+    status: str,
+    violations: list,
+    company_info: dict = None,
+    risk_score: float = None,
+    explanation: str = None,
+    anomaly_flag: str = None
+):
+    """
+    Save the compliance result to the Supabase table `compliance_audit_log`.
+    Maps `status` -> `compliance_status` and stores violations in `audit_details`.
+    """
     data = {
-        "company_id": company_id,
         "tenant_id": tenant_id,
-        "status": status,
-        "violations": violations,  # can be JSON/text
+        "company_id": company_id,
+        "rule_code": "SHARIAH_SCREENING",                 # default for now
+        "fatwa_version": None,                            # can be filled if needed
+        "compliance_status": status,                      # correct column name
+        "created_at": datetime.utcnow().isoformat(),
+        "company_name": company_info.get("name") if company_info else None,
+        "company_industry": company_info.get("industry") if company_info else None,
+        "audit_details": json.dumps(violations) if violations else None,
+        "violations_count": len(violations) if violations else 0,
+        "risk_score": risk_score,
+        "explanation": explanation,
+        "anomaly_flag": anomaly_flag,
+        "total_assets": company_info.get("total_assets") if company_info else None,
+        "total_debt": company_info.get("total_debt") if company_info else None,
+        "total_income": company_info.get("total_income") if company_info else None,
+        "non_halal_income": company_info.get("non_halal_income") if company_info else None,
+        "cash_and_interest_securities": company_info.get("cash_and_interest_securities") if company_info else None,
+        "fatwa_id": "SHARIAH_SCREENING",                 # optional, set if fatwa applied
+        "title": None,
+        "description": None,
+        "ruling": None,
+        "data": None
     }
+
+    # Insert into Supabase
     res = supabase.table("compliance_audit_log").insert(data).execute()
     if res.error:
-        print(f"❌ Failed to save result: {res.error}")
+        print("❌ Failed to save result:", res.error)
     return res.data
-def fetch_results(tenant_id: str):
-    with get_cursor() as cur:
-        cur.execute("""
-            SELECT company_id, compliance_status, violations, created_at
-            FROM compliance_results
-            WHERE tenant_id = %s
-        """, (tenant_id,))
-        rows = cur.fetchall()
-
-    return [
-        {
-            "company_id": r[0],
-            "status": r[1],
-            "violations": r[2].split(", ") if r[2] else [],
-            "created_at": r[3]
-        }
-        for r in rows
-    ]
 
 def fetch_result_by_company(company_id: str, tenant_id: str):
     with get_cursor() as cur:

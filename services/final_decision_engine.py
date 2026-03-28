@@ -37,51 +37,49 @@ class FinalDecisionEngine:
         self.tenant_id = tenant_id
 
     def evaluate_company(self, company: dict):
+        """
+        Runs full decision pipeline:
+        1. Compliance rule check
+        2. ML risk scoring
+        3. Anomaly detection
+        4. Explainability
+        5. Shariah governance binding (fatwa check & audit)
+        6. Save results to DB
+        """
         company_id = company.get("company_id")
 
+        # ----------------------------
         # 1️⃣ Compliance Check
+        # ----------------------------
         status, violations = check_shariah_compliance(company, THRESHOLDS)
-
-        # 2️⃣ ML Risk Scoring (unchanged)
+        explanation = generate_explanation(company, status, violations, THRESHOLDS)
+        # ----------------------------
+        # 2️⃣ ML Risk Scoring
+        # ----------------------------
         risk_score = None
         if model:
+            total_assets = company.get("total_assets", 1)
+            total_debt = company.get("total_debt", 0)
+            total_income = company.get("total_income", 1)
+            non_halal_income = company.get("non_halal_income", 0)
+            cash = company.get("cash_and_interest_securities", 0)
+
             X = pd.DataFrame([{
-                "debt_ratio": company.get("total_debt", 0) / max(company.get("total_assets", 1), 1),
-                "liquidity_ratio": company.get("cash_and_interest_securities", 0) / max(company.get("total_assets", 1),
-                                                                                        1),
-                "non_halal_income_ratio": company.get("non_halal_income", 0) / max(company.get("total_income", 1), 1),
-                "other_financial_metric1": company.get("total_income", 0) / max(company.get("total_assets", 1), 1),
-                "other_financial_metric2": company.get("total_debt", 0) / max(company.get("total_income", 1), 1),
+                "debt_ratio": total_debt / total_assets,
+                "liquidity_ratio": cash / total_assets,
+                "non_halal_income_ratio": non_halal_income / total_income,
+                "other_financial_metric1": total_income / total_assets,
+                "other_financial_metric2": total_debt / total_income,
             }])
             try:
-                risk_score = model.predict_proba(X)[0][1] if hasattr(model, "predict_proba") else model.predict(X)[0]
+                if hasattr(model, "predict_proba"):
+                    probs = model.predict_proba(X)
+                    risk_score = probs[0][1] if probs.shape[1] > 1 else probs[0][0]
+                else:
+                    risk_score = model.predict(X)[0]
             except Exception as e:
-                print(f"❌ ML prediction failed: {e}")
                 risk_score = None
-
-        # 3️⃣ Anomaly Detection
-        anomalies = detect_anomaly(company)
-
-        # 4️⃣ Explainability
-        explanation = generate_explanation(company, status, violations, THRESHOLDS)
-
-        # 5️⃣ Skipping fatwa logic completely
-        fatwa_status = "skipped"
-
-        # 6️⃣ Save results
-        save_result(company_id, self.tenant_id, status, violations)
-        populate_features(self.tenant_id)
-
-        # 7️⃣ Return combined result
-        return {
-            "company_id": company_id,
-            "status": status,
-            "violations": violations,
-            "risk_score": float(risk_score) if risk_score is not None else None,
-            "anomalies": anomalies,
-            "explanation": explanation,
-            "fatwa_status": fatwa_status,
-        }
+                print(f"❌ ML prediction failed: {e}")
 
         # ----------------------------
         # 3️⃣ Anomaly Detection
