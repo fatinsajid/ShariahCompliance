@@ -4,7 +4,7 @@ from services.compliance_engine import check_shariah_compliance
 from services.fatwa_registry import attach_fatwa_metadata
 from services.scholar_consensus import compute_scholar_consensus
 from services.explainability_engine import generate_ml_explanation
-from dal.db_connector import fetch_fatwa_by_id, fetch_scholar_approvals
+from dal.db_connector import fetch_fatwa_by_id
 
 def get_active_fatwa(rule_code: str, tenant_id: str):
     """
