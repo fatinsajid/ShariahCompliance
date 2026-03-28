@@ -58,12 +58,18 @@ class FinalDecisionEngine:
         # ----------------------------
         risk_score = None
         if model:
+            total_assets = company.get("total_assets", 1)
+            total_debt = company.get("total_debt", 0)
+            total_income = company.get("total_income", 1)
+            non_halal_income = company.get("non_halal_income", 0)
+            cash = company.get("cash_and_interest_securities", 0)
+
             X = pd.DataFrame([{
-                "total_assets": company.get("total_assets", 0),
-                "total_debt": company.get("total_debt", 0),
-                "total_income": company.get("total_income", 0),
-                "non_halal_income": company.get("non_halal_income", 0),
-                "cash_and_interest_securities": company.get("cash_and_interest_securities", 0),
+                "debt_ratio": total_debt / total_assets,
+                "liquidity_ratio": cash / total_assets,
+                "non_halal_income_ratio": non_halal_income / total_income,
+                "other_financial_metric1": total_income / total_assets,
+                "other_financial_metric2": total_debt / total_income,
             }])
             try:
                 if hasattr(model, "predict_proba"):
