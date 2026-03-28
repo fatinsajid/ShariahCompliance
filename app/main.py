@@ -736,12 +736,13 @@ def audit_bulk(request: Request, file: UploadFile = File(...)):
 
     return {"processed": len(results), "results": results}
 class SingleCompanyRequest(BaseModel):
-    companyId: str
-    totalAsset: float
-    totalDebt: float
-    totalIncome: float
-    nonHalalIncome: float
-    cashInterestSecurities: float
+    company_name: str
+    company_industry: str
+    total_assets: float
+    total_debt: float
+    total_income: float
+    non_halal_income: float
+    cash_and_interest_securities: float
 @app.post("/api/analyze/bulk")
 async def analyze_bulk(file: UploadFile = File(...)):
     try:
@@ -787,14 +788,13 @@ async def analyze_single_company(data: SingleCompanyRequest):
     try:
         # Prepare payload for the analysis engine
         company_payload = {
-            "company_id": None,  # Optional if IDs are removed
             "company_name": data.company_name,
             "company_industry": data.company_industry,
-            "total_assets": data.totalAsset,
-            "total_debt": data.totalDebt,
-            "total_income": data.totalIncome,
-            "non_halal_income": data.nonHalalIncome,
-            "cash_and_interest_securities": data.cashInterestSecurities,
+            "total_assets": data.total_assets,
+            "total_debt": data.total_debt,
+            "total_income": data.total_income,
+            "non_halal_income": data.non_halal_income,
+            "cash_and_interest_securities": data.cash_and_interest_securities,
         }
 
         # Call your analysis engine
@@ -814,11 +814,11 @@ async def analyze_single_company(data: SingleCompanyRequest):
             explanation=result.get("explanation"),
             scholar_reviews=result.get("scholar_reviews"),
             anomaly_flag=result.get("anomaly_flag"),
-            total_assets=data.totalAsset,
-            total_debt=data.totalDebt,
-            total_income=data.totalIncome,
-            non_halal_income=data.nonHalalIncome,
-            cash_and_interest_securities=data.cashInterestSecurities,
+            ttotal_assets=data.total_assets,
+            total_debt=data.total_debt,
+            total_income=data.total_income,
+            non_halal_income=data.non_halal_income,
+            cash_and_interest_securities=data.cash_and_interest_securities,
             compliance_status=result.get("compliance_status"),
             rule_code=result.get("rule_code"),
             fatwa_version=result.get("fatwa_version"),
