@@ -7,34 +7,25 @@ Thesis-grade minimal implementation
 from typing import Dict, List, Any
 
 
-def generate_explanation(
-    company: Dict[str, Any],
-    status: str,
-    violations: List[Dict],
-    thresholds: Dict
-) -> Dict[str, Any]:
+def generate_explanation(company: dict, status: str, violations: list, thresholds: dict):
     """
-    Generate structured explainability output
+    Generate structured explanation for audit / frontend
     """
+    explanation = []
 
-    explanation = {
-        "company_id": company.get("company_id"),
-        "overall_status": status,
-        "summary": _build_summary(status, violations),
-        "rule_analysis": [],
-        "confidence": _compute_confidence(violations),
-        "methodology": "AAOIFI quantitative screening (rule-based)"
-    }
-
-    # Build per-rule explanations
     for v in violations:
-        explanation["rule_analysis"].append({
-            "rule": v.get("rule"),
-            "observed_value": v.get("value"),
+        # v is now always a dict
+        explanation.append({
+            "rule": v.get("rule", "unknown"),
+            "message": v.get("message", ""),
+            "value": v.get("value"),
             "threshold": v.get("threshold"),
-            "status": "FAIL",
-            "reason": _humanize_reason(v)
         })
+
+    # Optionally, add overall summary
+    explanation.append({
+        "summary": f"Company is {status}. Total violations: {len(violations)}"
+    })
 
     return explanation
 

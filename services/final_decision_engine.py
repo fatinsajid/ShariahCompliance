@@ -52,7 +52,7 @@ class FinalDecisionEngine:
         # 1️⃣ Compliance Check
         # ----------------------------
         status, violations = check_shariah_compliance(company, THRESHOLDS)
-
+        explanation = generate_explanation(company, status, violations, THRESHOLDS)
         # ----------------------------
         # 2️⃣ ML Risk Scoring
         # ----------------------------
