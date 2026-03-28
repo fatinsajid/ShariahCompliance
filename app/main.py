@@ -787,7 +787,7 @@ async def analyze_bulk(file: UploadFile = File(...)):
 async def analyze_single_company(data: SingleCompanyRequest):
     try:
         db = SessionLocal()
-
+        tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
         company_id = str(uuid4())
 
         payload = {
@@ -801,7 +801,7 @@ async def analyze_single_company(data: SingleCompanyRequest):
             "cash_and_interest_securities": data.cash_and_interest_securities,
         }
 
-        result = FinalDecisionEngine().analyze_single_company(payload)
+        result = FinalDecisionEngine(tenant_id).analyze_single_company(payload)
 
         audit_entry = ComplianceAuditLog(
             audit_id=str(uuid4()),
@@ -836,11 +836,7 @@ async def analyze_single_company(data: SingleCompanyRequest):
     except Exception as e:
 
         import traceback
-
-        print("🔥 FULL ERROR TRACE:")
-
         traceback.print_exc()
-
         raise HTTPException(status_code=500, detail=str(e))
 # ----------------------------
 # 19️⃣ Run
