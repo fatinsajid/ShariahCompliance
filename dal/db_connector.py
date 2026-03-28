@@ -442,18 +442,13 @@ def fetch_audit_logs(tenant_id: str):
 # 🔹 Fatwa Access
 # -----------------------------
 def fetch_fatwa_by_id(fatwa_id: str, tenant_id: str):
-    """Fetch a single fatwa record for a tenant"""
-    response = (
-        supabase
-        .from_("fatwas")
-        .select("fatwa_id, title, description, version, rule_code, ruling")
-        .eq("fatwa_id", fatwa_id)
-        .eq("tenant_id", tenant_id)
-        .single()
-        .execute()
-    )
-    if response.data:
-        return response.data
+    """ Fetch a fatwa record for a tenant """
+    res = supabase.table("fatwas").select(
+        "fatwa_id, title, description, fatwa_version, rule_code, ruling"
+    ).eq("fatwa_id", fatwa_id).eq("tenant_id", tenant_id).execute()
+    data = res.data
+    if data:
+        return data[0]
     return None
 def fetch_fatwa_by_rule(rule_code: str, tenant_id: str):
     """Fetch all fatwas for a given rule and tenant"""
