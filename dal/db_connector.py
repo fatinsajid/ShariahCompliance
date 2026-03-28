@@ -11,7 +11,7 @@ from config.db_config import DB_CONFIG
 from sqlalchemy import text
 import logging
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
 
 # -----------------------------
@@ -56,20 +56,16 @@ def get_connection():
 # -----------------------------
 # Context Manager
 # -----------------------------
-@contextmanager
-def get_cursor():
-    conn = POOL.getconn()
+def get_db_session() -> Session:
+    db = SessionLocal()  # create a session
     try:
-        cur = conn.cursor()
-        yield cur
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        logger.exception("DB transaction failed")
+        yield db
+        db.commit()        # commit changes if any
+    except Exception:
+        db.rollback()      # rollback on exception
         raise
     finally:
-        cur.close()
-        POOL.putconn(conn)
+        db.close()         # close session
 
 # -----------------------------
 # Compliance Insert
