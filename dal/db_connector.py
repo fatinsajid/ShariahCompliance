@@ -364,20 +364,18 @@ def fetch_companies(tenant_id: str) -> List[Dict]:
 # -----------------------------
 # Compliance Results
 # -----------------------------
-def save_result(company_id: str, tenant_id: str, status: str, violations: List[str]):
-    with get_cursor() as cur:
-        cur.execute("""
-            INSERT INTO compliance_results (
-                company_id, tenant_id, compliance_status, violations
-            )
-            VALUES (%s,%s,%s,%s);
-        """, (
-            company_id,
-            tenant_id,
-            status,
-            ", ".join(violations) if violations else "None"
-        ))
-
+def save_result(company_id: str, tenant_id: str, status: str, violations: list):
+    """Save compliance analysis results to Supabase"""
+    data = {
+        "company_id": company_id,
+        "tenant_id": tenant_id,
+        "status": status,
+        "violations": violations,  # can be JSON/text
+    }
+    res = supabase.table("compliance_audit_log").insert(data).execute()
+    if res.error:
+        print(f"❌ Failed to save result: {res.error}")
+    return res.data
 def fetch_results(tenant_id: str):
     with get_cursor() as cur:
         cur.execute("""
