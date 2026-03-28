@@ -39,7 +39,7 @@ def get_db_session():
     try:
         yield get_db_session()
     finally:
-        db.close()
+        get_db_session.close()
     return SessionLocal()
 
 
@@ -479,3 +479,86 @@ def insert_audit_log(log_entry: dict):
     # Optional: you could append to an in-memory list for testing
     # _audit_logs.append(log_entry)
 
+# -----------------------------
+# 🔹 Full ML → DB Pipeline
+# -----------------------------
+def save_full_pipeline(company: Dict, tenant_id: str, result: Dict):
+    """
+    Saves a company, ML features, compliance result, and audit log in one transaction.
+    """
+    with get_cursor() as cur:
+        # 1️⃣ Insert/update company
+        cur.execute("""
+            INSERT INTO companies (
+                company_id, tenant_id, total_assets, total_debt,
+                total_income, non_halal_income, cash_and_interest_securities, sector
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (company_id, tenant_id)
+            DO UPDATE SET
+                total_assets = EXCLUDED.total_assets,
+                total_debt = EXCLUDED.total_debt,
+                total_income = EXCLUDED.total_income,
+                non_halal_income = EXCLUDED.non_halal_income,
+                cash_and_interest_securities = EXCLUDED.cash_and_interest_securities,
+                sector = EXCLUDED.sector;
+        """, (
+            company["company_id"], tenant_id,
+            company.get("total_assets", 0),
+            company.get("total_debt", 0),
+            company.get("total_income", 0),
+            company.get("non_halal_income", 0),
+            company.get("cash_and_interest_securities", 0),
+            company.get("sector", "Unknown")
+        ))
+
+        # 2️⃣ ML Features
+        debt_ratio = company.get("total_debt", 0) / (company.get("total_assets", 0) + 1)
+        liquidity_ratio = company.get("cash_and_interest_securities", 0) / (company.get("total_assets", 0) + 1)
+        non_halal_income_ratio = company.get("non_halal_income", 0) / (company.get("total_income", 0) + 1)
+        other_financial_metric1 = company.get("total_assets", 0) / (company.get("total_debt", 0) + 1)
+        other_financial_metric2 = company.get("total_income", 0) / (company.get("total_assets", 0) + 1)
+
+        cur.execute("""
+            INSERT INTO companies_features (
+                company_id, tenant_id, debt_ratio, liquidity_ratio, non_halal_income_ratio,
+                other_financial_metric1, other_financial_metric2
+            )
+            VALUES (%s,%s,%s,%s,%s,%s,%s)
+            ON CONFLICT (company_id, tenant_id)
+            DO UPDATE SET
+                debt_ratio = EXCLUDED.debt_ratio,
+                liquidity_ratio = EXCLUDED.liquidity_ratio,
+                non_halal_income_ratio = EXCLUDED.non_halal_income_ratio,
+                other_financial_metric1 = EXCLUDED.other_financial_metric1,
+                other_financial_metric2 = EXCLUDED.other_financial_metric2;
+        """, (
+            company["company_id"], tenant_id,
+            debt_ratio, liquidity_ratio, non_halal_income_ratio,
+            other_financial_metric1, other_financial_metric2
+        ))
+
+        # 3️⃣ Compliance Result
+        cur.execute("""
+            INSERT INTO compliance_results (
+                company_id, tenant_id, compliance_status, violations
+            )
+            VALUES (%s,%s,%s,%s)
+        """, (
+            company["company_id"], tenant_id,
+            result.get("compliance_status", "pending"),
+            ", ".join(result.get("violations", [])) or "None"
+        ))
+
+        # 4️⃣ Audit Log
+        log_entry = {
+            "company_id": company["company_id"],
+            "tenant_id": tenant_id,
+            "status": result.get("compliance_status", "pending"),
+            "violations": len(result.get("violations", [])),
+            "risk_score": result.get("risk_score", 0),
+            "created_at": datetime.utcnow()
+        }
+        insert_audit_log(log_entry)
+
+    logger.info(f"✅ Full pipeline saved for company {company['company_id']}")

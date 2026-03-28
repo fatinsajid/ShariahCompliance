@@ -23,54 +23,29 @@ async def get_current_user(request: Request) -> Dict:
 # Dashboard Overview with DB
 # ------------------------------
 @app_router.get("/dashboard/overview")
-async def dashboard_overview(
-    request: Request,
-    db: Session = Depends(get_db_session),
-):
-    tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
-    # Total companies
-    total_companies = db.execute("SELECT COUNT(*) FROM companies").scalar() or 0
+async def dashboard_overview():
+    try:
+        print("Dashboard route hit")  # <-- log when the route is called
 
-    # Compliance percentage
-    compliant_count = db.execute(
-        "SELECT COUNT(*) FROM companies WHERE compliance = TRUE"
-    ).scalar() or 0
-    compliance_percent = round((compliant_count / total_companies) * 100, 2) if total_companies else 0
-    non_compliance_percent = 100 - compliance_percent
-
-    # Average violations
-    avg_violations = db.execute(
-        "SELECT AVG(violations) FROM audit_logs"
-    ).scalar() or 0
-
-    # Risk distribution example (replace with real DB query if you have risk levels)
-    risk_distribution = [0.1, 0.3, 0.4, 0.2]
-
-    # Recent audit logs (limit 5)
-    recent_audit_logs = db.execute(
-        "SELECT company, status, violations, date FROM audit_logs ORDER BY date DESC LIMIT 5"
-    ).fetchall()
-
-    recent_audit_logs_formatted = [
-        {
-            "company": row.company,
-            "status": row.status,
-            "violations": row.violations,
-            "date": row.date.strftime("%Y-%m-%d") if isinstance(row.date, datetime) else str(row.date)
+        # TODO: Replace this with real DB fetch
+        # Simulate fetching from database
+        result = {
+            "totalCompanies": 12,
+            "compliancePercent": 75,
+            "nonCompliancePercent": 25,
+            "avgViolations": 1.8,
+            "riskDistribution": [0.1, 0.2, 0.3, 0.4],
+            "recentAuditLogs": [
+                {"company": "ABC Ltd", "status": "Compliant", "violations": 0, "date": "2026-03-28"},
+                {"company": "XYZ Inc", "status": "Non-Compliant", "violations": 3, "date": "2026-03-27"},
+            ]
         }
-        for row in recent_audit_logs
-    ]
+        print("Dashboard data prepared:", result)
+        return result
 
-    return {
-        "totalCompanies": total_companies,
-        "compliancePercent": compliance_percent,
-        "nonCompliancePercent": non_compliance_percent,
-        "avgViolations": avg_violations,
-        "riskDistribution": risk_distribution,
-        "recentAuditLogs": recent_audit_logs_formatted,
-        "user": user,
-    }
-
+    except Exception as e:
+        print("Dashboard error:", e)  # <-- log the actual exception
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 # ------------------------------
 # Other routes

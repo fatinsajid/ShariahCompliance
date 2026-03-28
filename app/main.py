@@ -53,14 +53,42 @@ load_dotenv()  # loads .env file
 
 
 # ----------------------------
-# 1️⃣ FastAPI instance
+# Lifespan FIRST
+# ----------------------------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        app.state.db_conn = connect(DATABASE_URL, cursor_factory=RealDictCursor)
+        print("✅ Database connected")
+    except OperationalError as e:
+        app.state.db_conn = None
+        print(f"❌ DB connection error: {e}")
+
+    yield
+
+    db_conn = getattr(app.state, "db_conn", None)
+    if db_conn:
+        db_conn.close()
+        print("Database connection closed")
+
+
+# ----------------------------
+# THEN FastAPI app
 # ----------------------------
 app = FastAPI(
     title="Shariah Compliance API v2",
     description="API for risk prediction & compliance check",
-    version="1.0"
+    version="1.0",
+    lifespan=lifespan
 )
-
+origins = ["http://localhost:5173"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # ----------------------------
 # 2️⃣ Environment & Models
 # ----------------------------
@@ -89,7 +117,7 @@ except Exception as e:
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 def get_db_conn():
-    return psycopg2.connect(DATABASE_URL)
+    return connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -109,7 +137,7 @@ async def lifespan(app: FastAPI):
         db_conn.close()
         print("Database connection closed")
 
-app = FastAPI(lifespan=lifespan)
+
 # ----------------------------
 # 3️⃣ Utility: Role Check
 # ----------------------------
@@ -161,23 +189,10 @@ async def supabase_auth_middleware(request: Request, call_next):
 # ----------------------------
 # 5️⃣ Middleware: CORS
 # ----------------------------
-origins = ["http://localhost:5173","https://shariahcompliance.onrender.com"]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
 def get_db_connection():
     try:
-        conn = psycopg2.connect(
-            host=os.getenv("DB_HOST"),
-            database=os.getenv("DB_NAME"),
-            user=os.getenv("DB_USER"),
-            password=os.getenv("DB_PASSWORD"),
-            port=os.getenv("DB_PORT", 5432)
-        )
+        conn = psycopg2.connect(os.getenv("DATABASE_URL"))
         return conn
     except Exception as e:
         print("DB connection error:", e)
@@ -349,9 +364,7 @@ def screen_company(payload: dict, request: Request):
         )
 
     # Save & update features
-    save_company(company, tenant_id)
-    save_result(company_id, tenant_id, status, violations)
-    populate_features(tenant_id)
+    save_full_pipeline(company, tenant_id, result_payload)
 
     # Optional event publish
     try:
@@ -447,49 +460,82 @@ def dashboard_root():
 @app.get("/dashboard/overview")
 def dashboard_overview(request: Request):
     db_conn = getattr(request.app.state, "db_conn", None)
+
     if not db_conn:
         return {"error": "Database not connected"}
 
-    tenant_id = os.getenv("TENANT_ID", "tenant-123")  # fallback to .env value
+    with db_conn.cursor() as cur:
+        # Total companies
+        cur.execute("SELECT COUNT(*) FROM companies;")
+        total = cur.fetchone()[0]
 
-    try:
-        with db_conn.cursor() as cur:
-            # Example query for your dashboard
-            cur.execute(
-                """
-                SELECT
-                    COUNT(*) AS total_companies,
-                    AVG(risk_score) AS avg_violations,
-                    SUM(CASE WHEN compliant THEN 1 ELSE 0 END) AS compliant_count,
-                    SUM(CASE WHEN NOT compliant THEN 1 ELSE 0 END) AS non_compliant_count
-                FROM companies
-                WHERE tenant_id = %s
-                """,
-                (tenant_id,),
-            )
-            result = cur.fetchone()
-    except Exception as e:
-        return {"error": f"Failed to fetch dashboard: {e}"}
+        # Compliance breakdown
+        cur.execute("""
+            SELECT status, COUNT(*)
+            FROM companies
+            GROUP BY status;
+        """)
+        rows = cur.fetchall()
+        status_counts = {r[0]: r[1] for r in rows}
 
-    if not result:
-        return {"message": "No data found for tenant"}
+        compliant = status_counts.get("Compliant", 0)
+        non_compliant = status_counts.get("Non-Compliant", 0)
 
-    # Format response
-    total = result.get("total_companies", 0) or 0
-    compliant = result.get("compliant_count", 0) or 0
-    non_compliant = result.get("non_compliant_count", 0) or 0
-    avg_violations = float(result.get("avg_violations", 0) or 0)
+        compliance_percent = (compliant / total * 100) if total else 0
+        non_compliance_percent = (non_compliant / total * 100) if total else 0
 
-    compliance_percent = (compliant / total * 100) if total else 0
-    non_compliance_percent = (non_compliant / total * 100) if total else 0
+        # Average violations
+        cur.execute("SELECT AVG(violations) FROM audit_logs;")
+        avg_violations = cur.fetchone()[0] or 0
+
+        # Risk distribution
+        cur.execute("""
+            SELECT
+                CASE
+                    WHEN risk_score < 0.3 THEN 'low'
+                    WHEN risk_score < 0.7 THEN 'medium'
+                    ELSE 'high'
+                END,
+                COUNT(*)
+            FROM companies
+            GROUP BY 1;
+        """)
+        dist_rows = cur.fetchall()
+
+        risk_map = {"low": 0, "medium": 0, "high": 0}
+        for r in dist_rows:
+            risk_map[r[0]] = r[1]
+
+        # Recent logs
+        cur.execute("""
+            SELECT c.name, a.status, a.violations, a.created_at
+            FROM audit_logs a
+            JOIN companies c ON a.company_id = c.id
+            ORDER BY a.created_at DESC
+            LIMIT 5;
+        """)
+        logs = [
+            {
+                "company": r[0],
+                "status": r[1],
+                "violations": r[2],
+                "date": r[3].strftime("%Y-%m-%d")
+            }
+            for r in cur.fetchall()
+        ]
 
     return {
         "totalCompanies": total,
         "compliancePercent": compliance_percent,
         "nonCompliancePercent": non_compliance_percent,
-        "avgViolations": avg_violations,
+        "avgViolations": float(avg_violations),
+        "riskDistribution": [
+            risk_map["low"],
+            risk_map["medium"],
+            risk_map["high"]
+        ],
+        "recentAuditLogs": logs
     }
-
 @app.get("/dashboard/audit-logs")
 def dashboard_audit_logs(request: Request):
     tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
@@ -558,64 +604,7 @@ def get_events(request: Request):
         {"id": 1, "event": "Company C1 compliance check", "status": "ok"},
         {"id": 2, "event": "Company C2 screening", "status": "warning"},
     ]
-@router.get("/dashboard/overview")
-def dashboard_overview():
-    try:
-        conn = get_db_conn()
-        cur = conn.cursor()
 
-        # 1️⃣ Total companies
-        cur.execute("SELECT COUNT(*) FROM companies;")
-        total_companies = cur.fetchone()[0] or 0
-
-        # 2️⃣ Compliance %
-        cur.execute("""
-            SELECT status, COUNT(*) 
-            FROM companies 
-            GROUP BY status;
-        """)
-        status_counts = dict(cur.fetchall())
-        compliant = status_counts.get("Compliant", 0)
-        non_compliant = status_counts.get("Non-Compliant", 0)
-        compliance_percent = round((compliant / total_companies) * 100, 1) if total_companies else 0
-        non_compliance_percent = round((non_compliant / total_companies) * 100, 1) if total_companies else 0
-
-        # 3️⃣ Average violations
-        cur.execute("SELECT AVG(violations) FROM audit_logs;")
-        avg_violations = float(cur.fetchone()[0] or 0)
-
-        # 4️⃣ Risk distribution (example: 5 bins)
-        cur.execute("SELECT risk_score FROM risk_distribution;")
-        risk_scores = [r[0] for r in cur.fetchall()]
-        risk_distribution = risk_scores if risk_scores else [0, 0, 0, 0, 0]
-
-        # 5️⃣ Recent Audit Logs (last 5)
-        cur.execute("""
-            SELECT c.name, a.status, a.violations, a.date
-            FROM audit_logs a
-            JOIN companies c ON a.company_id = c.id
-            ORDER BY a.date DESC
-            LIMIT 5;
-        """)
-        recent_audit_logs = [
-            {"company": r[0], "status": r[1], "violations": r[2], "date": r[3].strftime("%Y-%m-%d")}
-            for r in cur.fetchall()
-        ]
-
-        cur.close()
-        conn.close()
-
-        return {
-            "totalCompanies": total_companies,
-            "compliancePercent": compliance_percent,
-            "nonCompliancePercent": non_compliance_percent,
-            "avgViolations": avg_violations,
-            "riskDistribution": risk_distribution,
-            "recentAuditLogs": recent_audit_logs
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
 # ----------------------------
 # 19️⃣ Run
 # ----------------------------
