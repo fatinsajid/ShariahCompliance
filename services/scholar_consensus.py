@@ -29,7 +29,14 @@ def compute_scholar_consensus(reviews: list) -> dict:
     )
     total = len(reviews)
 
-    ratio = approvals / total
+    weighted_score = sum(
+        r["weight"] * (1 if r["decision"] == "APPROVED" else 0)
+        for r in reviews
+    )
+
+    total_weight = sum(r["weight"] for r in reviews)
+
+    ratio = weighted_score / total_weight
 
     return {
         "consensus_status": (
