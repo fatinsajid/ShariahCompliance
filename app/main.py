@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from psycopg2 import connect, OperationalError
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
+from database import SessionLocal
 
 # DAL
 from dal.db_connector import (
@@ -784,16 +785,28 @@ async def analyze_bulk(file: UploadFile = File(...)):
 @app.post("/api/analyze/single")
 async def analyze_single_company(data: SingleCompanyRequest):
     try:
-        # Call your analysis engine
-        result = FinalDecisionEngine().analyze_single_company(data.dict())
+        # Prepare payload for the analysis engine
+        company_payload = {
+            "company_id": None,  # Optional if IDs are removed
+            "company_name": data.company_name,
+            "company_industry": data.company_industry,
+            "total_assets": data.totalAsset,
+            "total_debt": data.totalDebt,
+            "total_income": data.totalIncome,
+            "non_halal_income": data.nonHalalIncome,
+            "cash_and_interest_securities": data.cashInterestSecurities,
+        }
 
-        # Populate compliance_audit_log
+        # Call your analysis engine
+        result = FinalDecisionEngine().analyze_single_company(company_payload)
+
+        # Insert into compliance_audit_log
         db = get_db_session()
         audit_entry = ComplianceAuditLog(
-            audit_id=str(uuid4()),
-            company_id=data.companyId,
-            company_name=result.get("company_name"),
-            company_industry=result.get("company_industry"),
+            audit_id=str(uuid.uuid4()),
+            company_id=None,  # since no ID
+            company_name=data.company_name,
+            company_industry=data.company_industry,
             created_at=datetime.utcnow(),
             audit_details=result.get("audit_details"),
             violations_count=result.get("violations_count"),
@@ -818,11 +831,12 @@ async def analyze_single_company(data: SingleCompanyRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 # ----------------------------
 # 19️⃣ Run
 # ----------------------------
 # Uncomment for local debugging
 # if __name__ == "__main__":
 #     import uvicorn
-#     uvicorn.run(app, host="0.0.0.0", port=8000)
+#     uvicorn.run(app, host="0.0.0.0", port=8000)# ----------------------------
+# 0️⃣ Imports
+# ----------------------------
