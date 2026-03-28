@@ -17,8 +17,7 @@ def get_active_fatwa(rule_code: str, tenant_id: str):
 
     # pick the latest version
     fatwa = max(fatwas, key=lambda f: f["version"])
-    return fatwa["fatwa_id"], fatwa["version"], fatwa["ruling"]
-
+    return fatwa["fatwa_id"], fatwa["version"], fatwa.get("ruling")
 
 def fatwa_is_approved(fatwa_id: str, tenant_id: str) -> bool:
     """

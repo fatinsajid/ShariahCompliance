@@ -441,17 +441,30 @@ def fetch_audit_logs(tenant_id: str):
 # 🔹 Fatwa Access
 # -----------------------------
 def fetch_fatwa_by_id(fatwa_id: str, tenant_id: str):
-    """ Fetch a fatwa record for a tenant """
-    with get_cursor() as cur:
-        cur.execute("""
-            SELECT fatwa_id, title, description
-            FROM fatwas
-            WHERE fatwa_id = %s AND tenant_id = %s
-        """, (fatwa_id, tenant_id))
-        row = cur.fetchone()
-    if row:
-        return {"fatwa_id": row[0], "title": row[1], "description": row[2]}
+    """Fetch a single fatwa record for a tenant"""
+    response = (
+        supabase
+        .from_("fatwas")
+        .select("fatwa_id, title, description, version, rule_code, ruling")
+        .eq("fatwa_id", fatwa_id)
+        .eq("tenant_id", tenant_id)
+        .single()
+        .execute()
+    )
+    if response.data:
+        return response.data
     return None
+def fetch_fatwa_by_rule(rule_code: str, tenant_id: str):
+    """Fetch all fatwas for a given rule and tenant"""
+    response = (
+        supabase
+        .from_("fatwas")
+        .select("fatwa_id, title, description, version, rule_code, ruling")
+        .eq("rule_code", rule_code)
+        .eq("tenant_id", tenant_id)
+        .execute()
+    )
+    return response.data or []
 # -----------------------------
 # Scholar Approvals
 # -----------------------------
