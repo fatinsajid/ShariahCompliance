@@ -47,7 +47,8 @@ from app.routes.dashboard import router as dashboard_router
 from app.auth import get_current_user
 from router.app_router import app_router
 from contextlib import asynccontextmanager
-from services.final_decision_engine import FinalDecisionEngine
+from models.compliance_audit_log import ComplianceAuditLog  # SQLAlchemy model
+
 router = APIRouter()
 
 load_dotenv()  # loads .env file
@@ -733,6 +734,91 @@ def audit_bulk(request: Request, file: UploadFile = File(...)):
         results.append({"company_id": company.get("company_id"), "result": result})
 
     return {"processed": len(results), "results": results}
+class SingleCompanyRequest(BaseModel):
+    companyId: str
+    totalAsset: float
+    totalDebt: float
+    totalIncome: float
+    nonHalalIncome: float
+    cashInterestSecurities: float
+@app.post("/api/analyze/bulk")
+async def analyze_bulk(file: UploadFile = File(...)):
+    try:
+        content = await file.read()
+        # FinalDecisionEngine should have a bulk CSV method
+        results = FinalDecisionEngine().analyze_bulk_csv(content)
+
+        # Insert all entries into compliance_audit_log
+        db = get_db_session()
+        for r in results:
+            audit_entry = ComplianceAuditLog(
+                audit_id=str(uuid4()),
+                company_id=r["company_id"],
+                company_name=r.get("company_name"),
+                company_industry=r.get("company_industry"),
+                created_at=datetime.utcnow(),
+                audit_details=r.get("audit_details"),
+                violations_count=r.get("violations_count"),
+                risk_score=r.get("risk_score"),
+                explanation=r.get("explanation"),
+                scholar_reviews=r.get("scholar_reviews"),
+                anomaly_flag=r.get("anomaly_flag"),
+                total_assets=r.get("total_assets"),
+                total_debt=r.get("total_debt"),
+                total_income=r.get("total_income"),
+                non_halal_income=r.get("non_halal_income"),
+                cash_and_interest_securities=r.get("cash_and_interest_securities"),
+                compliance_status=r.get("compliance_status"),
+                rule_code=r.get("rule_code"),
+                fatwa_version=r.get("fatwa_version"),
+                triggered_by="bulk_analysis"
+            )
+            db.add(audit_entry)
+        db.commit()
+
+        return results
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/analyze/single")
+async def analyze_single_company(data: SingleCompanyRequest):
+    try:
+        # Call your analysis engine
+        result = FinalDecisionEngine().analyze_single_company(data.dict())
+
+        # Populate compliance_audit_log
+        db = get_db_session()
+        audit_entry = ComplianceAuditLog(
+            audit_id=str(uuid4()),
+            company_id=data.companyId,
+            company_name=result.get("company_name"),
+            company_industry=result.get("company_industry"),
+            created_at=datetime.utcnow(),
+            audit_details=result.get("audit_details"),
+            violations_count=result.get("violations_count"),
+            risk_score=result.get("risk_score"),
+            explanation=result.get("explanation"),
+            scholar_reviews=result.get("scholar_reviews"),
+            anomaly_flag=result.get("anomaly_flag"),
+            total_assets=data.totalAsset,
+            total_debt=data.totalDebt,
+            total_income=data.totalIncome,
+            non_halal_income=data.nonHalalIncome,
+            cash_and_interest_securities=data.cashInterestSecurities,
+            compliance_status=result.get("compliance_status"),
+            rule_code=result.get("rule_code"),
+            fatwa_version=result.get("fatwa_version"),
+            triggered_by="single_analysis"
+        )
+        db.add(audit_entry)
+        db.commit()
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 # ----------------------------
 # 19️⃣ Run
 # ----------------------------
