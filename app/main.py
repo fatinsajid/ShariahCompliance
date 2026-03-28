@@ -801,7 +801,7 @@ async def analyze_single_company(data: SingleCompanyRequest, request: Request):
             "cash_and_interest_securities": data.cash_and_interest_securities,
         }
 
-        result = FinalDecisionEngine(tenant_id).analyze_single_company(payload)
+        result = FinalDecisionEngine(tenant_id).evaluate_company(payload)
 
         audit_entry = ComplianceAuditLog(
             audit_id=str(uuid4()),
@@ -826,8 +826,7 @@ async def analyze_single_company(data: SingleCompanyRequest, request: Request):
             triggered_by="single_analysis"
         )
 
-        db.add(audit_entry)
-        db.commit()
+
         db.close()
 
         return {"company_id": company_id, "result": result}
