@@ -755,7 +755,7 @@ async def analyze_bulk(file: UploadFile = File(...)):
         for r in results:
             audit_entry = ComplianceAuditLog(
                 audit_id=str(uuid4()),
-                company_id=r["company_id"],
+                company_id = str(uuid.uuid4()),
                 company_name=r.get("company_name"),
                 company_industry=r.get("company_industry"),
                 created_at=datetime.utcnow(),
@@ -786,8 +786,10 @@ async def analyze_bulk(file: UploadFile = File(...)):
 @app.post("/api/analyze/single")
 async def analyze_single_company(data: SingleCompanyRequest):
     try:
+        company_id = str(uuid.uuid4())
         # Prepare payload for the analysis engine
         company_payload = {
+            "company_id": company_id,
             "company_name": data.company_name,
             "company_industry": data.company_industry,
             "total_assets": data.total_assets,
@@ -804,7 +806,7 @@ async def analyze_single_company(data: SingleCompanyRequest):
         db = get_db_session()
         audit_entry = ComplianceAuditLog(
             audit_id=str(uuid.uuid4()),
-            company_id=None,  # since no ID
+            company_id = str(uuid.uuid4()),
             company_name=data.company_name,
             company_industry=data.company_industry,
             created_at=datetime.utcnow(),
