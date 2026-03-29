@@ -140,3 +140,15 @@ class FinalDecisionEngine:
             "explanation": explanation,
             "fatwa_status": fatwa_status,
         }
+class FinalDecisionEngine:
+
+    def _prepare_features(self, data):
+        # Example feature extraction (adjust to your schema)
+        processed = []
+        for item in data:
+            processed.append([
+                item.get("risk_score", 0),
+                item.get("violations", 0),
+                1 if item.get("compliance_status") == "Compliant" else 0
+            ])
+        return processed
