@@ -71,24 +71,6 @@ class FinalDecisionEngine:
                 print(f"❌ ML prediction failed: {e}")
                 risk_score = None
 
-        def clean_for_json(obj):
-            """
-            Convert NumPy types to native Python types for JSON serialization
-            """
-            if isinstance(obj, dict):
-                return {k: clean_for_json(v) for k, v in obj.items()}
-            elif isinstance(obj, list):
-                return [clean_for_json(v) for v in obj]
-            elif isinstance(obj, np.bool_):
-                return bool(obj)
-            elif isinstance(obj, (np.integer, np.int64, np.int32)):
-                return int(obj)
-            elif isinstance(obj, (np.floating, np.float64, np.float32)):
-                return float(obj)
-            return obj
-
-        audit_data = clean_for_json(audit_data)
-        features = clean_for_json(features)
         # ----------------------------
         # 3️⃣ Anomaly Detection
         # ----------------------------
@@ -103,27 +85,10 @@ class FinalDecisionEngine:
         # 5️⃣ Bypass Fatwa
         # ----------------------------
         fatwa_status = None  # explicitly bypassed
-
+        print({k: type(v) for k, v in audit_data.items()})
         # ----------------------------
         # 6️⃣ Save results to DB
         # ----------------------------
-        def clean_for_json(data):
-            import numpy as np
-
-            cleaned = {}
-            for k, v in data.items():
-                if isinstance(v, (np.bool_,)):
-                    cleaned[k] = bool(v)
-                elif isinstance(v, (np.integer,)):
-                    cleaned[k] = int(v)
-                elif isinstance(v, (np.floating,)):
-                    cleaned[k] = float(v)
-                elif isinstance(v, (dict, list)):
-                    cleaned[k] = v
-                else:
-                    cleaned[k] = v
-            return cleaned
-
 
         company_id = company.get("company_id") or str(uuid.uuid4())
         audit_data = {
@@ -136,16 +101,17 @@ class FinalDecisionEngine:
             "triggered_by": "system",
             "created_at": datetime.utcnow().isoformat(),
 
-            "company_name": company.get("company_name"),
-            "company_industry": company.get("company_industry"),
+            "company_name": company_name,
+            "company_industry": company_industry,
 
             "audit_details": None,
-            "violations_count": len(violations),
+            "violations_count": len(violations) if violations else 0,
             "risk_score": float(risk_score) if risk_score is not None else None,
-            "explanation": explanation,
+
+            "explanation": json.dumps(explanation) if isinstance(explanation, (dict, list)) else explanation,
 
             "scholar_reviews": None,
-            "anomaly_flag": str(anomalies),  # ensure safe
+            "anomaly_flag": bool(anomalies) if anomalies is not None else None,
 
             "total_assets": company.get("total_assets"),
             "total_debt": company.get("total_debt"),
@@ -153,17 +119,13 @@ class FinalDecisionEngine:
             "non_halal_income": company.get("non_halal_income"),
             "cash_and_interest_securities": company.get("cash_and_interest_securities"),
 
-    # fatwa disabled
             "fatwa_id": None,
             "title": None,
             "description": None,
             "ruling": None,
             "data": None,
-}
-        audit_data["explanation"] = json.dumps(audit_data["explanation"])  # convert list → string
-        audit_data["anomaly_flag"] = str(audit_data["anomaly_flag"])
-        audit_data = clean_for_json(audit_data)
-        print({k: type(v) for k, v in audit_data.items()})
+        }
+
         save_result(audit_data)
         populate_features(self.tenant_id)
         # ----------------------------

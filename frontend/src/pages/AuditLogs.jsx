@@ -4,32 +4,32 @@ import Topbar from "../components/dashboard/Topbar";
 import { DatePicker } from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 
-const dummyAuditData = [
-  { id: 1, companyId: "C001", compliance: "Compliant", date: "2026-03-25", details: "All checks passed" },
-  { id: 2, companyId: "C002", compliance: "Non Compliant", date: "2026-03-24", details: "Missing documentation" },
-  { id: 3, companyId: "C003", compliance: "Compliant", date: "2026-03-23", details: "Minor issues resolved" },
-];
+  const dummyAuditData = [
+    { id: 1, companyId: "C001", compliance: "Compliant", date: "2026-03-25", details: "All checks passed" },
+    { id: 2, companyId: "C002", compliance: "Non Compliant", date: "2026-03-24", details: "Missing documentation" },
+    { id: 3, companyId: "C003", compliance: "Compliant", date: "2026-03-23", details: "Minor issues resolved" },
+  ];
 
-export default function AuditLogs() {
-  const [companyId, setCompanyId] = useState("");
-  const [compliance, setCompliance] = useState("");
-  const [dateRange, setDateRange] = useState([null, null]);
-  const [startDate, endDate] = dateRange;
-  const [auditData, setAuditData] = useState([]);
-  const [selectedAudit, setSelectedAudit] = useState(null);
+  export default function AuditLogs() {
+    const [companyId, setCompanyId] = useState("");
+    const [compliance, setCompliance] = useState("");
+    const [dateRange, setDateRange] = useState([null, null]);
+    const [startDate, endDate] = dateRange;
+    const [auditData, setAuditData] = useState([]);
+    const [selectedAudit, setSelectedAudit] = useState(null);
 
-  const handleSubmit = () => {
-    const filtered = dummyAuditData.filter((item) => {
-      const matchCompany = companyId ? item.companyId === companyId : true;
-      const matchCompliance = compliance ? item.compliance === compliance : true;
-      const matchDate =
-        (!startDate || !endDate) ||
-        (new Date(item.date) >= startDate && new Date(item.date) <= endDate);
-      return matchCompany && matchCompliance && matchDate;
-    });
-    setAuditData(filtered);
-    setSelectedAudit(null);
-  };
+    const handleSubmit = () => {
+      const filtered = dummyAuditData.filter((item) => {
+        const matchCompany = companyId ? item.companyId === companyId : true;
+        const matchCompliance = compliance ? item.compliance === compliance : true;
+        const matchDate =
+          (!startDate || !endDate) ||
+          (new Date(item.date) >= startDate && new Date(item.date) <= endDate);
+        return matchCompany && matchCompliance && matchDate;
+      });
+      setAuditData(filtered);
+      setSelectedAudit(null);
+    };
 
   const handleReset = () => {
     setCompanyId("");

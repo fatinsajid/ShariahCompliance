@@ -1,10 +1,14 @@
-import { useState } from "react";
+// DataAnalysis.jsx
+import { useState, useEffect } from "react";
+import { supabase } from "../lib/supabaseClient"; // single instance
+import axios from "axios";
 import Sidebar from "../components/dashboard/Sidebar";
 import Topbar from "../components/dashboard/Topbar";
 
 const DataAnalysis = () => {
   const [singleData, setSingleData] = useState({
-    companyId: "",
+    companyName: "",
+    companyIndustry: "",
     totalAsset: "",
     totalDebt: "",
     totalIncome: "",
@@ -13,69 +17,85 @@ const DataAnalysis = () => {
   });
   const [submitted, setSubmitted] = useState(false);
   const [bulkFile, setBulkFile] = useState(null);
+  const [industries, setIndustries] = useState([]);
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    const fetchIndustries = async () => {
+      const { data, error } = await supabase
+        .from("compliance_audit_log")
+        .select("company_industry")
+        .neq("company_industry", null)
+        .order("company_industry", { ascending: true });
+
+      if (error) console.error(error);
+      else setIndustries([...new Set(data.map((i) => i.company_industry))]);
+    };
+    fetchIndustries();
+  }, []);
 
   const handleSingleChange = (e) => {
     const { name, value } = e.target;
     setSingleData({ ...singleData, [name]: value });
+    setErrors({ ...errors, [name]: "" });
+  };
+
+  const handleSingleSubmit = async () => {
+    if (!singleData.companyName.trim() || !singleData.companyIndustry) {
+      alert("Company Name and Industry are required.");
+      return;
+    }
+
+    // Prepare numeric fields with fallback to 0
+    const payload = {
+      company_name: singleData.companyName.trim(),
+      company_industry: singleData.companyIndustry,
+      total_assets: parseFloat(singleData.totalAsset) || 0,
+      total_debt: parseFloat(singleData.totalDebt) || 0,
+      total_income: parseFloat(singleData.totalIncome) || 0,
+      non_halal_income: parseFloat(singleData.nonHalalIncome) || 0,
+      cash_and_interest_securities: parseFloat(singleData.cashInterestSecurities) || 0,
+    };
+
+    console.log("Validated payload:", payload);
+
+    try {
+      const res = await axios.post(
+        `${import.meta.env.VITE_BACKEND_URL}/api/analyze/single`,
+        payload
+      );
+      console.log(res.data);
+      setSubmitted(true);
+      alert("Single company analysis submitted successfully!");
+    } catch (err) {
+      console.error("Error submitting single company:", err);
+      alert("Failed to submit single company. Check backend logs for details.");
+    }
   };
 
   const handleBulkUpload = (e) => {
     const file = e.target.files[0];
-    if (file && file.type === "text/csv") {
-      setBulkFile(file);
-    } else {
-      alert("Only CSV files are allowed!");
+    if (file?.type !== "text/csv") return alert("Only CSV files are allowed!");
+    setBulkFile(file);
+  };
+
+  const handleBulkSubmit = async () => {
+    if (!bulkFile) return;
+    const formData = new FormData();
+    formData.append("file", bulkFile);
+
+    try {
+      const res = await axios.post(
+        `${import.meta.env.VITE_BACKEND_URL}/api/analyze/bulk`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+      console.log(res.data);
+      alert("Bulk analysis completed successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to submit bulk CSV.");
     }
-  };
-
-  const handleSingleSubmit = () => {
-    console.log("Single company data submitted:", singleData);
-    setSubmitted(true); // show download buttons
-  };
-
-  const downloadSingleCSV = () => {
-    const headers = [
-      "Company ID",
-      "Total Asset",
-      "Total Debt",
-      "Total Income",
-      "Non-Halal Income",
-      "Cash & Interest Securities",
-    ];
-    const values = [
-      singleData.companyId,
-      singleData.totalAsset,
-      singleData.totalDebt,
-      singleData.totalIncome,
-      singleData.nonHalalIncome,
-      singleData.cashInterestSecurities,
-    ];
-    const csvContent = [headers.join(","), values.join(",")].join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "single_company_analysis.csv";
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const downloadSinglePDF = () => {
-    const docContent = `
-      Company ID: ${singleData.companyId}
-      Total Asset: ${singleData.totalAsset}
-      Total Debt: ${singleData.totalDebt}
-      Total Income: ${singleData.totalIncome}
-      Non-Halal Income: ${singleData.nonHalalIncome}
-      Cash & Interest Securities: ${singleData.cashInterestSecurities}
-    `;
-    const blob = new Blob([docContent], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "single_company_analysis.pdf";
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -83,80 +103,75 @@ const DataAnalysis = () => {
       <Sidebar />
       <div className="flex-1 flex flex-col">
         <Topbar />
-
         <div className="p-6">
-          <h1 className="text-xl font-semibold text-gray-800 mb-6">
-            Data Analysis
-          </h1>
-
+          <h1 className="text-xl font-semibold text-gray-800 mb-6">Data Analysis</h1>
           <div className="grid grid-cols-4 grid-rows-3 gap-6">
-
-            {/* Single Company Analysis */}
+            {/* Single Company */}
             <div className="col-span-2 row-span-2 bg-white rounded-2xl shadow p-5">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">
-                Single Company Analysis
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-700 mb-4">Single Company Analysis</h3>
               <div className="grid grid-cols-2 gap-4">
+                {/* Industry */}
                 <label className="flex flex-col text-sm text-gray-600">
-                  Company ID
+                  Industry
+                  <select
+                    name="companyIndustry"
+                    value={singleData.companyIndustry}
+                    onChange={handleSingleChange}
+                    className={`mt-1 px-3 py-2 border rounded ${
+                      errors.companyIndustry ? "border-red-500" : ""
+                    }`}
+                  >
+                    <option value="">Select Industry</option>
+                    {industries.map((ind) => (
+                      <option key={ind} value={ind}>{ind}</option>
+                    ))}
+                  </select>
+                  {errors.companyIndustry && (
+                    <span className="text-red-500 text-xs mt-1">{errors.companyIndustry}</span>
+                  )}
+                </label>
+
+                {/* Company Name */}
+                <label className="flex flex-col text-sm text-gray-600">
+                  Company Name
                   <input
                     type="text"
-                    name="companyId"
-                    value={singleData.companyId}
+                    name="companyName"
+                    value={singleData.companyName}
                     onChange={handleSingleChange}
-                    className="mt-1 px-3 py-2 border rounded"
+                    className={`mt-1 px-3 py-2 border rounded ${
+                      errors.companyName ? "border-red-500" : ""
+                    }`}
                   />
+                  {errors.companyName && (
+                    <span className="text-red-500 text-xs mt-1">{errors.companyName}</span>
+                  )}
                 </label>
-                <label className="flex flex-col text-sm text-gray-600">
-                  Total Asset
-                  <input
-                    type="text"
-                    name="totalAsset"
-                    value={singleData.totalAsset}
-                    onChange={handleSingleChange}
-                    className="mt-1 px-3 py-2 border rounded"
-                  />
-                </label>
-                <label className="flex flex-col text-sm text-gray-600">
-                  Total Debt
-                  <input
-                    type="text"
-                    name="totalDebt"
-                    value={singleData.totalDebt}
-                    onChange={handleSingleChange}
-                    className="mt-1 px-3 py-2 border rounded"
-                  />
-                </label>
-                <label className="flex flex-col text-sm text-gray-600">
-                  Total Income
-                  <input
-                    type="text"
-                    name="totalIncome"
-                    value={singleData.totalIncome}
-                    onChange={handleSingleChange}
-                    className="mt-1 px-3 py-2 border rounded"
-                  />
-                </label>
-                <label className="flex flex-col text-sm text-gray-600">
-                  Non-Halal Income
-                  <input
-                    type="text"
-                    name="nonHalalIncome"
-                    value={singleData.nonHalalIncome}
-                    onChange={handleSingleChange}
-                    className="mt-1 px-3 py-2 border rounded"
-                  />
-                </label>
-                <label className="flex flex-col text-sm text-gray-600">
-                  Cash & Interest Securities
-                  <input
-                    type="text"
-                    name="cashInterestSecurities"
-                    value={singleData.cashInterestSecurities}
-                    onChange={handleSingleChange}
-                    className="mt-1 px-3 py-2 border rounded"
-                  />
-                </label>
+
+                {/* Numeric fields */}
+                {[
+                  { label: "Total Asset", name: "totalAsset" },
+                  { label: "Total Debt", name: "totalDebt" },
+                  { label: "Total Income", name: "totalIncome" },
+                  { label: "Non-Halal Income", name: "nonHalalIncome" },
+                  { label: "Cash & Interest Securities", name: "cashInterestSecurities" },
+                ].map((f) => (
+                  <label key={f.name} className="flex flex-col text-sm text-gray-600">
+                    {f.label}
+                    <input
+                      type="number"
+                      name={f.name}
+                      value={singleData[f.name]}
+                      onChange={handleSingleChange}
+                      className={`mt-1 px-3 py-2 border rounded ${
+                        errors[f.name] ? "border-red-500" : ""
+                      }`}
+                    />
+                    {errors[f.name] && (
+                      <span className="text-red-500 text-xs mt-1">{errors[f.name]}</span>
+                    )}
+                  </label>
+                ))}
               </div>
 
               <div className="mt-4 flex gap-3">
@@ -167,31 +182,28 @@ const DataAnalysis = () => {
                   Submit
                 </button>
               </div>
-            </div>
 
-            {/* Download Buttons - Row 3, Col 1 only */}
-            {submitted && (
-              <div className="col-end-2 row-start-3 gap-3">
-                <button
-                  onClick={downloadSingleCSV}
-                  className="px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                >
-                  Download CSV
-                </button>
-                <button
-                  onClick={downloadSinglePDF}
-                  className="px-7 py-2 bg-blue-700 text-white rounded hover:bg-indigo-700"
-                >
-                  Download PDF  
-                </button>
-              </div>
-            )}
+              {submitted && (
+                <div className="mt-4 flex gap-3">
+                  <button
+                    onClick={downloadSingleCSV}
+                    className="px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Download CSV
+                  </button>
+                  <button
+                    onClick={downloadSinglePDF}
+                    className="px-7 py-2 bg-blue-700 text-white rounded hover:bg-indigo-700"
+                  >
+                    Download PDF
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Bulk Analysis */}
             <div className="col-span-2 row-span-3 bg-white rounded-2xl shadow p-5 flex flex-col items-center justify-center">
-              <h3 className="text-lg font-semibold text-gray-700 mb-4">
-                Bulk Analysis (CSV)
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-700 mb-4">Bulk Analysis (CSV)</h3>
               <label className="w-full border-2 border-dashed border-gray-300 rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer hover:border-indigo-600 hover:bg-indigo-50">
                 <svg
                   className="w-12 h-12 text-gray-400 mb-3"
@@ -218,13 +230,12 @@ const DataAnalysis = () => {
               </label>
               {bulkFile && <p className="mt-2 text-gray-700">Selected file: {bulkFile.name}</p>}
               <button
-                onClick={() => console.log("Bulk CSV submitted:", bulkFile)}
+                onClick={handleBulkSubmit}
                 className="mt-4 px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700"
               >
                 Submit Bulk
               </button>
             </div>
-
           </div>
         </div>
       </div>
