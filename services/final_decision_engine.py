@@ -141,7 +141,8 @@ class FinalDecisionEngine:
             "description": None,
             "ruling": None,
             "data": None,
-}       audit_data = clean_for_json(audit_data)
+}
+        audit_data = clean_for_json(audit_data)
         print({k: type(v) for k, v in audit_data.items()})
         save_result(audit_data)
         populate_features(self.tenant_id)
