@@ -374,7 +374,6 @@ class CompanyInput(BaseModel):
     total_income: float
     non_halal_income: float
     cash_and_interest_securities: float
-    sector: str
 
 @app.post("/screen")
 def screen_company(payload: dict, request: Request):
