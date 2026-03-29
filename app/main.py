@@ -61,6 +61,28 @@ ANOMALY_MODEL_PATH = os.path.join(BASE_DIR, "..", "models", "anomaly_model_v1.pk
 MODEL_PATH = os.path.abspath(MODEL_PATH)
 ANOMALY_MODEL_PATH = os.path.abspath(ANOMALY_MODEL_PATH)
 
+model = None
+anomaly_model = None
+
+try:
+    print("Loading model from:", MODEL_PATH)
+    model = joblib.load(MODEL_PATH)
+    print("✅ Model loaded")
+except Exception as e:
+    print("❌ Model load failed:", e)
+
+try:
+    print("Loading anomaly model from:", ANOMALY_MODEL_PATH)
+    anomaly_model = joblib.load(ANOMALY_MODEL_PATH)
+    print("✅ Anomaly model loaded")
+except Exception as e:
+    print("❌ Anomaly model load failed:", e)
+if model is None or anomaly_model is None:
+    raise HTTPException(
+        status_code=500,
+        detail="ML models not loaded. Check deployment."
+    )
+
 # ----------------------------
 # 4️⃣ Utility Functions
 # ----------------------------
