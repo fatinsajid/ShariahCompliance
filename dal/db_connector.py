@@ -399,19 +399,19 @@ import os
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def save_result(audit_data: dict):
-    try:
-        res = supabase.table("compliance_audit_log").insert(audit_data).execute()
 
-        # ✅ Proper error handling
-        if res.error:
-            print("❌ Supabase insert error:", res.error)
-            raise Exception(res.error.message)
+    # insert into compliance_audit_log
+    res = supabase.table("compliance_audit_log").insert(audit_data).execute()
 
-        print("✅ Audit record inserted:", res.data)
+    # check for errors safely
+    if hasattr(res, "status_code") and res.status_code >= 400:
+        print("❌ Failed to save audit record:", res.data)
+        return False
 
-    except Exception as e:
-        print(f"❌ Failed to save audit record: {e}")
-        raise
+    # fallback for older versions
+    if hasattr(res, "error") and res.error:
+        print("❌ Failed to save audit record:", res.error)
+        return False
 def fetch_result_by_company(company_id: str, tenant_id: str):
     with get_cursor() as cur:
         cur.execute("""
