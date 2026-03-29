@@ -170,7 +170,7 @@ class FinalDecisionEngine:
         }])
 
     def evaluate_company(self, company: Dict):
-        X = self,_prepare_features([{
+        X = self._prepare_features([{
             "total_assets": company["total_assets"],
             "total_debt": company["total_debt"],
             "total_income": company["total_income"],
