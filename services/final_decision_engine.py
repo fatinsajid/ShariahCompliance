@@ -32,6 +32,17 @@ class FinalDecisionEngine:
     def __init__(self, tenant_id: str):
         self.tenant_id = tenant_id
 
+    # ✅ ADD THIS METHOD HERE (inside same class)
+    def _prepare_features(self, data):
+        processed = []
+        for item in data:
+            processed.append([
+                item.get("risk_score", 0),
+                item.get("violations", 0),
+                1 if item.get("compliance_status") == "Compliant" else 0
+            ])
+        return processed
+
     def evaluate_company(self, company: dict):
         company_id = company.get("company_id") or str(uuid.uuid4())
         company_name = company.get("company_name")
@@ -82,15 +93,8 @@ class FinalDecisionEngine:
         explanation = generate_explanation(company, status, violations, THRESHOLDS)
 
         # ----------------------------
-        # 5️⃣ Bypass Fatwa
+        # 5️⃣ Save results
         # ----------------------------
-        fatwa_status = None  # explicitly bypassed
-        print({k: type(v) for k, v in audit_data.items()})
-        # ----------------------------
-        # 6️⃣ Save results to DB
-        # ----------------------------
-
-        company_id = company.get("company_id") or str(uuid.uuid4())
         audit_data = {
             "audit_id": str(uuid.uuid4()),
             "tenant_id": self.tenant_id,
@@ -109,7 +113,6 @@ class FinalDecisionEngine:
             "risk_score": float(risk_score) if risk_score is not None else None,
 
             "explanation": json.dumps(explanation) if isinstance(explanation, (dict, list)) else explanation,
-
             "scholar_reviews": None,
             "anomaly_flag": bool(anomalies) if anomalies is not None else None,
 
@@ -118,19 +121,11 @@ class FinalDecisionEngine:
             "total_income": company.get("total_income"),
             "non_halal_income": company.get("non_halal_income"),
             "cash_and_interest_securities": company.get("cash_and_interest_securities"),
-
-            "fatwa_id": None,
-            "title": None,
-            "description": None,
-            "ruling": None,
-            "data": None,
         }
 
         save_result(audit_data)
         populate_features(self.tenant_id)
-        # ----------------------------
-        # 7️⃣ Return combined result
-        # ----------------------------
+
         return {
             "company_id": company_id,
             "status": status,
@@ -138,17 +133,4 @@ class FinalDecisionEngine:
             "risk_score": risk_score,
             "anomalies": anomalies,
             "explanation": explanation,
-            "fatwa_status": fatwa_status,
         }
-class FinalDecisionEngine:
-
-    def _prepare_features(self, data):
-        # Example feature extraction (adjust to your schema)
-        processed = []
-        for item in data:
-            processed.append([
-                item.get("risk_score", 0),
-                item.get("violations", 0),
-                1 if item.get("compliance_status") == "Compliant" else 0
-            ])
-        return processed
