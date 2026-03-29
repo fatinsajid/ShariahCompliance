@@ -13,9 +13,35 @@ import logging
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from supabase import create_client, Client
+import numpy as np
 
 
+def serialize(obj):
+    """Recursively convert all non-JSON-safe types"""
 
+    if isinstance(obj, dict):
+        return {k: serialize(v) for k, v in obj.items()}
+
+    elif isinstance(obj, list):
+        return [serialize(i) for i in obj]
+
+    elif isinstance(obj, datetime):
+        return obj.isoformat()
+
+    elif isinstance(obj, uuid.UUID):
+        return str(obj)
+
+    # 🔥 CRITICAL FIX
+    elif isinstance(obj, (np.bool_,)):
+        return bool(obj)
+
+    elif isinstance(obj, (np.integer,)):
+        return int(obj)
+
+    elif isinstance(obj, (np.floating,)):
+        return float(obj)
+
+    return obj
 # -----------------------------
 # 🔴 LOAD ENV FIRST (CRITICAL FIX)
 # -----------------------------
@@ -383,7 +409,9 @@ def save_result(audit_data: dict):
           total_debt, total_income, non_halal_income, cash_and_interest_securities,
           fatwa_id, title, description, ruling, data
     """
+
     try:
+        clean_data = serialize(audit_data)
         res = supabase.table("compliance_audit_log").insert(audit_data).execute()
         if res.status_code >= 400:
             print(f"❌ Supabase insert failed: {res.data}")
