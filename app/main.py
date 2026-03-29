@@ -152,8 +152,25 @@ class FinalDecisionEngine:
         self.model = model
         self.anomaly_model = anomaly_model
 
+    def prepare_features(self, company_data):
+        # Compute features your model was trained on
+        debt_ratio = company_data['total_debt'] / company_data['total_assets'] if company_data[
+                                                                                      'total_assets'] != 0 else 0
+        liquidity_ratio = company_data['cash_and_interest_securities'] / company_data['total_assets'] if company_data[
+                                                                                                             'total_assets'] != 0 else 0
+        non_halal_income_ratio = company_data['non_halal_income'] / company_data['total_income'] if company_data[
+                                                                                                        'total_income'] != 0 else 0
+
+        return pd.DataFrame([{
+            'debt_ratio': debt_ratio,
+            'liquidity_ratio': liquidity_ratio,
+            'non_halal_income_ratio': non_halal_income_ratio,
+            'other_financial_metric1': 0,  # placeholder
+            'other_financial_metric2': 0  # placeholder
+        }])
+
     def evaluate_company(self, company: Dict):
-        X = pd.DataFrame([{
+        X = self,_prepare_features([{
             "total_assets": company["total_assets"],
             "total_debt": company["total_debt"],
             "total_income": company["total_income"],
