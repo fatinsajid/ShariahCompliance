@@ -85,11 +85,28 @@ class FinalDecisionEngine:
         # 5️⃣ Bypass Fatwa
         # ----------------------------
         fatwa_status = None  # explicitly bypassed
-        print({k: type(v) for k, v in audit_data.items()})
+
         # ----------------------------
         # 6️⃣ Save results to DB
         # ----------------------------
+        def clean_for_json(data):
+            import numpy as np
 
+            cleaned = {}
+            for k, v in data.items():
+                if isinstance(v, (np.bool_,)):
+                    cleaned[k] = bool(v)
+                elif isinstance(v, (np.integer,)):
+                    cleaned[k] = int(v)
+                elif isinstance(v, (np.floating,)):
+                    cleaned[k] = float(v)
+                elif isinstance(v, (dict, list)):
+                    cleaned[k] = v
+                else:
+                    cleaned[k] = v
+            return cleaned
+
+        audit_data = clean_for_json(audit_data)
         company_id = company.get("company_id") or str(uuid.uuid4())
         audit_data = {
             "audit_id": str(uuid.uuid4()),
@@ -125,7 +142,7 @@ class FinalDecisionEngine:
             "ruling": None,
             "data": None,
         }
-
+        print({k: type(v) for k, v in audit_data.items()})
         save_result(audit_data)
         populate_features(self.tenant_id)
         # ----------------------------
