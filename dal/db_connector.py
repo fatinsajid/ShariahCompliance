@@ -397,7 +397,6 @@ def save_result(
         "total_income": company_info.get("total_income") if company_info else None,
         "non_halal_income": company_info.get("non_halal_income") if company_info else None,
         "cash_and_interest_securities": company_info.get("cash_and_interest_securities") if company_info else None,
-        "fatwa_id": "SHARIAH_SCREENING",                 # optional, set if fatwa applied
         "title": None,
         "description": None,
         "ruling": None,
