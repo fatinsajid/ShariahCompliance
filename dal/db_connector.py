@@ -364,30 +364,29 @@ def populate_features(tenant_id: str):
 
     logger.info("✅ ML features populated")
 
+from typing import List, Dict
+from dal.db_connector import supabase
+
 def fetch_companies(tenant_id: str) -> List[Dict]:
-    with get_cursor() as cur:
-        cur.execute("""
-            SELECT company_id, total_assets, total_debt,
-                   total_income, non_halal_income,
-                   cash_and_interest_securities, sector
-            FROM companies
-            WHERE tenant_id = %s
-        """, (tenant_id,))
-        rows = cur.fetchall()
+    res = supabase.table("companies").select(
+        "company_id, total_assets, total_debt, total_income, "
+        "non_halal_income, cash_and_interest_securities, sector"
+    ).eq("tenant_id", tenant_id).execute()
+
+    companies = res.data if hasattr(res, "data") and res.data else []
 
     return [
         {
-            "company_id": r[0],
-            "total_assets": float(r[1] or 0),
-            "total_debt": float(r[2] or 0),
-            "total_income": float(r[3] or 0),
-            "non_halal_income": float(r[4] or 0),
-            "cash_and_interest_securities": float(r[5] or 0),
-            "sector": r[6] or "Unknown"
+            "company_id": c["company_id"],
+            "total_assets": float(c.get("total_assets") or 0),
+            "total_debt": float(c.get("total_debt") or 0),
+            "total_income": float(c.get("total_income") or 0),
+            "non_halal_income": float(c.get("non_halal_income") or 0),
+            "cash_and_interest_securities": float(c.get("cash_and_interest_securities") or 0),
+            "sector": c.get("sector") or "Unknown"
         }
-        for r in rows
+        for c in companies
     ]
-
 # -----------------------------
 # Compliance Results
 # -----------------------------
