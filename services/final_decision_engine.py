@@ -30,6 +30,7 @@ except Exception as e:
 
 class FinalDecisionEngine:
     def __init__(self, tenant_id: str):
+        print("🚀 FinalDecisionEngine INIT VERSION 2")
         self.tenant_id = tenant_id
 
     # ✅ ADD THIS METHOD HERE (inside same class)
