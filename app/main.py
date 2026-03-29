@@ -173,13 +173,7 @@ class FinalDecisionEngine:
         }])
 
     def evaluate_company(self, company: Dict):
-        X = self._prepare_features([{
-            "total_assets": company["total_assets"],
-            "total_debt": company["total_debt"],
-            "total_income": company["total_income"],
-            "non_halal_income": company["non_halal_income"],
-            "cash_and_interest_securities": company["cash_and_interest_securities"],
-        }])
+        X = self.prepare_features(company)
 
         risk_score = float(self.model.predict_proba(X)[0][1])
         anomaly_flag = self.anomaly_model.predict(X)[0]
