@@ -85,10 +85,12 @@ class FinalDecisionEngine:
         # 5️⃣ Bypass Fatwa
         # ----------------------------
         fatwa_status = None  # explicitly bypassed
-
+        print({k: type(v) for k, v in audit_data.items()})
         # ----------------------------
         # 6️⃣ Save results to DB
         # ----------------------------
+
+        company_id = company.get("company_id") or str(uuid.uuid4())
         audit_data = {
             "audit_id": str(uuid.uuid4()),
             "tenant_id": self.tenant_id,
@@ -98,19 +100,25 @@ class FinalDecisionEngine:
             "compliance_status": status,
             "triggered_by": "system",
             "created_at": datetime.utcnow().isoformat(),
+
             "company_name": company_name,
             "company_industry": company_industry,
+
             "audit_details": None,
-            "violations_count": len(violations),
-            "risk_score": risk_score,
-            "explanation": explanation,
+            "violations_count": len(violations) if violations else 0,
+            "risk_score": float(risk_score) if risk_score is not None else None,
+
+            "explanation": json.dumps(explanation) if isinstance(explanation, (dict, list)) else explanation,
+
             "scholar_reviews": None,
-            "anomaly_flag": anomalies,
+            "anomaly_flag": bool(anomalies) if anomalies is not None else None,
+
             "total_assets": company.get("total_assets"),
             "total_debt": company.get("total_debt"),
             "total_income": company.get("total_income"),
             "non_halal_income": company.get("non_halal_income"),
             "cash_and_interest_securities": company.get("cash_and_interest_securities"),
+
             "fatwa_id": None,
             "title": None,
             "description": None,
@@ -120,7 +128,6 @@ class FinalDecisionEngine:
 
         save_result(audit_data)
         populate_features(self.tenant_id)
-
         # ----------------------------
         # 7️⃣ Return combined result
         # ----------------------------
