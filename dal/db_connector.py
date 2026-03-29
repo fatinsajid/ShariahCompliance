@@ -451,55 +451,9 @@ def fetch_audit_logs(tenant_id: str):
     ]
 
 # -----------------------------
-# 🔹 Fatwa Access
-# -----------------------------
-def fetch_fatwa_by_id(fatwa_id: str, tenant_id: str):
-    """
-    Fetch a fatwa record for a tenant from JSONB column.
-    Maps JSON keys to expected schema.
-    """
-    if tenant_id is None:
-        tenant_id = "demo-tenant"
-
-    res = supabase.table("fatwas").select(
-        "data->>fatwa_id, data->>title, data->>description, data->>fatwa_version, data->>rule_code, data->>ruling"
-    ).eq("data->>fatwa_id", fatwa_id).eq("tenant_id", tenant_id).execute()
-
-    data = res.data
-    if not data:
-        return None
-
-    record = data[0]
-    # normalize keys
-    return {
-        "fatwa_id": record.get("data->>fatwa_id"),
-        "title": record.get("data->>title"),
-        "description": record.get("data->>description"),
-        "fatwa_version": record.get("data->>fatwa_version"),
-        "rule_code": record.get("data->>rule_code"),
-        "ruling": record.get("data->>ruling"),
-    }
-def fetch_fatwa_by_rule(rule_code: str, tenant_id: str):
-    """Fetch all fatwas for a given rule and tenant"""
-    response = (
-        supabase
-        .from_("fatwas")
-        .select("fatwa_id, title, description, version, rule_code, ruling")
-        .eq("rule_code", rule_code)
-        .eq("tenant_id", tenant_id)
-        .execute()
-    )
-    return response.data or []
-# -----------------------------
 # Scholar Approvals
 # -----------------------------
-def fetch_scholar_approvals(fatwa_id: str):
-    with get_cursor() as cur:
-        cur.execute(
-            "SELECT scholar_id, decision FROM scholar_review WHERE fatwa_id=%s",
-            (fatwa_id,)
-        )
-        return cur.fetchall()
+
 # -----------------------------
 # Audit Logs
 # -----------------------------
