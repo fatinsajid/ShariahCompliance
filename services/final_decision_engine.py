@@ -97,7 +97,7 @@ class FinalDecisionEngine:
             "fatwa_version": None,
             "compliance_status": status,
             "triggered_by": "system",
-            "created_at": datetime.utcnow(),
+            "created_at": datetime.utcnow().isoformat(),
             "company_name": company_name,
             "company_industry": company_industry,
             "audit_details": None,

@@ -451,7 +451,7 @@ def insert_audit_log(log_entry: dict):
     """
     print(f"📜 Audit Log: {log_entry}")
     # Optional: persist timestamp if not provided
-    log_entry.setdefault("created_at", datetime.utcnow())
+    log_entry.setdefault("created_at", datetime.utcnow().isoformat())
     # Optional: you could append to an in-memory list for testing
     # _audit_logs.append(log_entry)
 
