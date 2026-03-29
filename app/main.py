@@ -18,6 +18,8 @@ from psycopg2 import connect, OperationalError
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 from database import SessionLocal
+from typing import Optional
+
 
 
 # DAL
@@ -365,7 +367,8 @@ def audit_log(company_id: str, request: Request):
 # 12️⃣ Screening: Single
 # ----------------------------
 class CompanyInput(BaseModel):
-    company_id: str
+    company_name: str
+    company_industry: Optional[str] = None
     total_assets: float
     total_debt: float
     total_income: float
@@ -802,7 +805,7 @@ async def analyze_bulk(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/analyze/single")
-async def analyze_single_company(data: SingleCompanyRequest, request: Request, payload: dict):
+async def analyze_single_company(payload: CompanyInput, request: Request):
 
     try:
         db = SessionLocal()
@@ -820,7 +823,7 @@ async def analyze_single_company(data: SingleCompanyRequest, request: Request, p
             "cash_and_interest_securities": data.cash_and_interest_securities,
         }
 
-        result = FinalDecisionEngine(tenant_id).evaluate_company(payload)
+        result = FinalDecisionEngine(tenant_id).evaluate_company(payload.dict())
 
         audit_entry = ComplianceAuditLog(
             audit_id=str(uuid4()),
