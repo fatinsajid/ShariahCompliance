@@ -328,49 +328,15 @@ def _bulk_upsert(companies: List[Dict], tenant_id: str):
 # -----------------------------
 # ML Features
 # -----------------------------
-def populate_features(tenant_id: str):
-    companies = fetch_companies(tenant_id)
-    if not companies:
-        logger.warning("⚠️ No companies for ML feature generation")
-        return
-
-    with get_cursor() as cur:
-        for c in companies:
-            debt_ratio = c["total_debt"] / (c["total_assets"] + 1)
-            liquidity_ratio = c["cash_and_interest_securities"] / (c["total_assets"] + 1)
-            non_halal_income_ratio = c["non_halal_income"] / (c["total_income"] + 1)
-            other_financial_metric1 = c["total_assets"] / (c["total_debt"] + 1)
-            other_financial_metric2 = c["total_income"] / (c["total_assets"] + 1)
-
-            cur.execute("""
-                INSERT INTO companies_features (
-                    company_id, tenant_id,
-                    debt_ratio, liquidity_ratio, non_halal_income_ratio,
-                    other_financial_metric1, other_financial_metric2
-                )
-                VALUES (%s,%s,%s,%s,%s,%s,%s)
-                ON CONFLICT (company_id, tenant_id)
-                DO UPDATE SET
-                    debt_ratio = EXCLUDED.debt_ratio,
-                    liquidity_ratio = EXCLUDED.liquidity_ratio,
-                    non_halal_income_ratio = EXCLUDED.non_halal_income_ratio,
-                    other_financial_metric1 = EXCLUDED.other_financial_metric1,
-                    other_financial_metric2 = EXCLUDED.other_financial_metric2;
-            """, (
-                c["company_id"], tenant_id,
-                debt_ratio, liquidity_ratio, non_halal_income_ratio,
-                other_financial_metric1, other_financial_metric2
-            ))
-
-    logger.info("✅ ML features populated")
-
-from typing import List, Dict
-from dal.db_connector import supabase
-
 def fetch_companies(tenant_id: str) -> List[Dict]:
-    res = supabase.table("companies").select(
-        "company_id, total_assets, total_debt, total_income, "
-        "non_halal_income, cash_and_interest_securities, sector"
+    """
+    Fetch company financials and industry info from compliance_audit_log
+    for a given tenant, selecting only necessary columns.
+    """
+    res = supabase.table("compliance_audit_log").select(
+        "company_id, company_name, company_industry, "
+        "total_assets, total_debt, total_income, "
+        "non_halal_income, cash_and_interest_securities"
     ).eq("tenant_id", tenant_id).execute()
 
     companies = res.data if hasattr(res, "data") and res.data else []
@@ -378,12 +344,74 @@ def fetch_companies(tenant_id: str) -> List[Dict]:
     return [
         {
             "company_id": c["company_id"],
+            "company_name": c.get("company_name") or "Unknown",
+            "company_industry": c.get("company_industry") or "Unknown",
             "total_assets": float(c.get("total_assets") or 0),
             "total_debt": float(c.get("total_debt") or 0),
             "total_income": float(c.get("total_income") or 0),
             "non_halal_income": float(c.get("non_halal_income") or 0),
             "cash_and_interest_securities": float(c.get("cash_and_interest_securities") or 0),
-            "sector": c.get("sector") or "Unknown"
+        }
+        for c in companies
+    ]
+
+
+def populate_features(tenant_id: str):
+    """
+    Compute and store features for all companies of a tenant
+    based on compliance_audit_log data.
+    """
+    companies = fetch_companies(tenant_id)
+
+    for company in companies:
+        # Example feature calculation (customize as needed)
+        total_assets = company["total_assets"]
+        total_debt = company["total_debt"]
+        net_worth = total_assets - total_debt
+        halal_income_ratio = (
+            (company["total_income"] - company["non_halal_income"]) / company["total_income"]
+            if company["total_income"] > 0 else 0
+        )
+
+        features = {
+            "company_id": company["company_id"],
+            "tenant_id": tenant_id,
+            "net_worth": net_worth,
+            "halal_income_ratio": halal_income_ratio,
+            # Add more features here if needed
+        }
+
+        # Save or update features in a separate table if you have one,
+        # or log them as needed.
+        # Example: supabase.table("company_features").upsert(features).execute()
+        print(f"Computed features for {company['company_name']}: {features}")
+
+from typing import List, Dict
+from dal.db_connector import supabase
+
+def fetch_companies(tenant_id: str) -> List[Dict]:
+    """
+    Fetch companies' financial and industry info from compliance_audit_log
+    for a given tenant. Only selects necessary columns for features.
+    """
+    res = supabase.table("compliance_audit_log").select(
+        "company_id, company_name, company_industry, "
+        "total_assets, total_debt, total_income, "
+        "non_halal_income, cash_and_interest_securities"
+    ).eq("tenant_id", tenant_id).execute()
+
+    companies = res.data if hasattr(res, "data") and res.data else []
+
+    return [
+        {
+            "company_id": c["company_id"],
+            "company_name": c.get("company_name") or "Unknown",
+            "company_industry": c.get("company_industry") or "Unknown",
+            "total_assets": float(c.get("total_assets") or 0),
+            "total_debt": float(c.get("total_debt") or 0),
+            "total_income": float(c.get("total_income") or 0),
+            "non_halal_income": float(c.get("non_halal_income") or 0),
+            "cash_and_interest_securities": float(c.get("cash_and_interest_securities") or 0),
         }
         for c in companies
     ]
