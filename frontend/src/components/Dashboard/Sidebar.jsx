@@ -26,7 +26,6 @@ const Sidebar = () => {
     { name: "Data Analysis", icon: <FiBarChart2 />, path: "/data-analysis" },
     { name: "Company Details", icon: <FiInfo />, path: "/companies" },
     { name: "Audit Log", icon: <FiFolder />, path: "/audit-logs" },
-    { name: "Scholar Reviews", icon: <FiClipboard />, path: "/scholar-reviews" },
   ];
 
   return (

@@ -1,161 +1,224 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Sidebar from "../components/dashboard/Sidebar";
 import Topbar from "../components/dashboard/Topbar";
-import { DatePicker } from "react-datepicker";
+import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { supabase } from "../lib/supabaseClient";
 
-  const dummyAuditData = [
-    { id: 1, companyId: "C001", compliance: "Compliant", date: "2026-03-25", details: "All checks passed" },
-    { id: 2, companyId: "C002", compliance: "Non Compliant", date: "2026-03-24", details: "Missing documentation" },
-    { id: 3, companyId: "C003", compliance: "Compliant", date: "2026-03-23", details: "Minor issues resolved" },
-  ];
+export default function AuditLogs() {
+  const [industries, setIndustries] = useState([]);
+  const [industry, setIndustry] = useState("");
+  const [compliance, setCompliance] = useState("");
+  const [dateRange, setDateRange] = useState([null, null]);
+  const [startDate, endDate] = dateRange;
+  const isFormValid = compliance && startDate && endDate;
+  const [auditData, setAuditData] = useState([]);
+  const [selectedAudit, setSelectedAudit] = useState(null);
 
-  export default function AuditLogs() {
-    const [companyId, setCompanyId] = useState("");
-    const [compliance, setCompliance] = useState("");
-    const [dateRange, setDateRange] = useState([null, null]);
-    const [startDate, endDate] = dateRange;
-    const [auditData, setAuditData] = useState([]);
-    const [selectedAudit, setSelectedAudit] = useState(null);
+  // ✅ Fetch unique industries
+  const fetchIndustries = async () => {
+    const { data, error } = await supabase
+      .from("compliance_audit_log")
+      .select("company_industry");
 
-    const handleSubmit = () => {
-      const filtered = dummyAuditData.filter((item) => {
-        const matchCompany = companyId ? item.companyId === companyId : true;
-        const matchCompliance = compliance ? item.compliance === compliance : true;
-        const matchDate =
-          (!startDate || !endDate) ||
-          (new Date(item.date) >= startDate && new Date(item.date) <= endDate);
-        return matchCompany && matchCompliance && matchDate;
-      });
-      setAuditData(filtered);
+    if (error) {
+      console.error("Industry fetch error:", error);
+      return;
+    }
+
+    const unique = [...new Set(data.map(d => d.company_industry).filter(Boolean))];
+    setIndustries(unique);
+  };
+
+  // ✅ Fetch audit records with filters
+    const handleSubmit = async () => {
+  if (!compliance || !startDate || !endDate) {
+    console.warn("Compliance and date range are required");
+    return;
+  }
+
+  let query = supabase
+    .from("compliance_audit_log")
+    .select("*");
+
+  // ✅ Apply ONLY if selected
+  if (industry) {
+    query = query.eq("company_industry", industry);
+  }
+
+  if (compliance !== "All") {
+    query = query.eq("compliance_status", compliance);
+  }
+
+  query = query
+    .gte("created_at", startDate.toISOString())
+    .lte("created_at", endDate.toISOString());
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error("Audit fetch error:", error);
+    setAuditData([]);
+    return;
+  }
+
+  console.log("Fetched audit data:", data); // 🔍 DEBUG
+
+  setAuditData(data || []);
+  setSelectedAudit(null);
+};
+    const handleReset = () => {
+      setIndustry("");
+      setCompliance("");
+      setDateRange([null, null]);
+      setAuditData([]);
       setSelectedAudit(null);
     };
 
-  const handleReset = () => {
-    setCompanyId("");
-    setCompliance("");
-    setDateRange([null, null]);
-    setAuditData([]);
-    setSelectedAudit(null);
-  };
+  useEffect(() => {
+    fetchIndustries();
+  }, []);
 
   return (
     <div className="flex min-h-screen bg-[#F9FAFB]">
-      {/* Sidebar */}
       <Sidebar active="audit-logs" />
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col">
-        {/* Topbar */}
         <Topbar />
+
         <div className="p-6">
-        {/* Page title */}
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">Audit Logs</h1>
+          <h1 className="text-2xl font-bold text-gray-800 mb-4">
+            Audit Logs
+          </h1>
 
-        {/* Filters + Table + Details */}
-        <div className="grid grid-cols-4 grid-rows-4 gap-5 flex-1">
-          {/* Company ID */}
-          <div className="col-span-1 row-span-1 bg-white rounded-2xl shadow p-5 flex flex-col gap-3">
-            <label>Company ID</label>
-            <select
-              value={companyId}
-              onChange={(e) => setCompanyId(e.target.value)}
-              className="border p-2 rounded"
-            >
-              <option value="">Select Company</option>
-              <option value="C001">C001</option>
-              <option value="C002">C002</option>
-              <option value="C003">C003</option>
-            </select>
-          </div>
+          <div className="grid grid-cols-4 grid-rows-4 gap-5">
 
-          {/* Compliance */}
-          <div className="col-span-1 row-span-1 bg-white rounded-2xl shadow p-5 flex flex-col gap-3">
-            <label>Compliance Status</label>
-            <select
-              value={compliance}
-              onChange={(e) => setCompliance(e.target.value)}
-              className="border p-2 rounded"
-            >
-              <option value="">Select Status</option>
-              <option value="Compliant">Compliant</option>
-              <option value="Non Compliant">Non Compliant</option>
-            </select>
-          </div>
-
-          {/* Date range + buttons */}
-          <div className="col-span-1 row-span-1 bg-white rounded-2xl shadow p-5 flex flex-col gap-3 ">
-            <label>Date Range</label>
-            <DatePicker
-              selectsRange
-              startDate={startDate}
-              endDate={endDate}
-              onChange={(update) => setDateRange(update)}
-              isClearable
-              className="border p-2 rounded"
-            />
-            <div className="flex gap-3 mt-3">
-              <button
-                onClick={handleSubmit}
-                className="bg-blue-700 text-white px-4 py-2 rounded hover:bg-indigo-700"
+            {/* Industry */}
+            <div className="bg-white rounded-2xl shadow p-5 flex flex-col gap-3">
+              <label>Industry</label>
+              <select
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                className="border p-2 rounded"
               >
-                Submit
-              </button>
-              <button
-                onClick={handleReset}
-                className="bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400"
-              >
-                Reset
-              </button>
+                <option value="">All Industries</option>
+                {industries.map((ind, i) => (
+                  <option key={i} value={ind}>
+                    {ind}
+                  </option>
+                ))}
+              </select>
             </div>
-          </div>
 
-          {/* Audit Details spanning all rows */}
-          <div className="col-span-1 row-span-4 bg-white rounded-2xl shadow p-5 overflow-auto">
-            <h2 className="font-bold text-lg mb-3">Audit Details</h2>
-            {selectedAudit ? (
-              <div>
-                <p><strong>Company ID:</strong> {selectedAudit.companyId}</p>
-                <p><strong>Compliance:</strong> {selectedAudit.compliance}</p>
-                <p><strong>Date:</strong> {selectedAudit.date}</p>
-                <p><strong>Details:</strong> {selectedAudit.details}</p>
+            {/* Compliance */}
+            <div className="bg-white rounded-2xl shadow p-5 flex flex-col gap-3">
+              <label>Compliance Status</label>
+              <select
+                value={compliance}
+                onChange={(e) => setCompliance(e.target.value)}
+                className="border p-2 rounded"
+              >
+                <option value="All">All</option>
+                <option value="Compliant">Compliant</option>
+                <option value="Non-Compliant">Non-Compliant</option>
+              </select>
+            </div>
+
+            {/* Date + Buttons */}
+            <div className="bg-white rounded-2xl shadow p-5 flex flex-col gap-3">
+              <label>Date Range</label>
+              <DatePicker
+                selectsRange
+                startDate={startDate}
+                endDate={endDate}
+                onChange={(update) => setDateRange(update)}
+                isClearable
+                className="border p-2 rounded"
+              />
+
+              <div className="flex gap-3 mt-3">
+                <button
+                  onClick={handleSubmit}
+                  className="bg-blue-700 text-white px-4 py-2 rounded hover:bg-indigo-700"
+                >
+                  Submit
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="bg-gray-300 px-4 py-2 rounded hover:bg-gray-400"
+                >
+                  Reset
+                </button>
               </div>
-            ) : (
-              <p>Select a record from the table to see details</p>
-            )}
-          </div>
+            </div>
 
-          {/* Audit Table spanning 3 columns and 3 rows */}
-          <div className="col-span-3 row-span-3 bg-white rounded-2xl shadow p-5 overflow-auto">
-            <h2 className="font-bold text-lg mb-3">Audit Records</h2>
-            {auditData.length === 0 ? (
-              <p>No data to display</p>
-            ) : (
-              <table className="w-full table-auto border-collapse border">
-                <thead>
-                  <tr>
-                    <th className="border px-3 py-2">Company ID</th>
-                    <th className="border px-3 py-2">Compliance</th>
-                    <th className="border px-3 py-2">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {auditData.map((record) => (
-                    <tr
-                      key={record.id}
-                      className="cursor-pointer hover:bg-gray-100"
-                      onClick={() => setSelectedAudit(record)}
-                    >
-                      <td className="border px-3 py-2">{record.companyId}</td>
-                      <td className="border px-3 py-2">{record.compliance}</td>
-                      <td className="border px-3 py-2">{record.date}</td>
+            {/* Audit Details */}
+            <div className="col-span-1 row-span-4 bg-white rounded-2xl shadow p-5 overflow-auto">
+              <h2 className="font-bold text-lg mb-3">Audit Details</h2>
+
+              {selectedAudit ? (
+                <div>
+                  <p><strong>Company:</strong> {selectedAudit.company_name}</p>
+                  <p><strong>Compliance:</strong> {selectedAudit.compliance_status}</p>
+                  <p><strong>Date:</strong> {new Date(selectedAudit.created_at).toLocaleDateString()}</p>
+
+                  <p className="mt-2 font-semibold">Details:</p>
+
+                  {Array.isArray(selectedAudit.audit_details) ? (
+                    selectedAudit.audit_details.map((d, i) => (
+                      <div key={i} className="mb-2 p-2 bg-gray-50 rounded">
+                        <p><strong>{d.rule}</strong> ({d.status})</p>
+                        <p className="text-sm">{d.description}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p>No details available</p>
+                  )}
+
+                  <p className="mt-2">
+                    <strong>Fatwa Version:</strong> {selectedAudit.fatwa_version || "-"}
+                  </p>
+                </div>
+              ) : (
+                <p>Select a record to view details</p>
+              )}
+            </div>
+
+            {/* Audit Table */}
+            <div className="col-span-3 row-span-3 bg-white rounded-2xl shadow p-5 overflow-auto">
+              <h2 className="font-bold text-lg mb-3">Audit Records</h2>
+
+              {auditData.length === 0 ? (
+                <p>No data found</p>
+              ) : (
+                <table className="w-full border">
+                  <thead>
+                    <tr>
+                      <th className="border px-3 py-2">Company Name</th>
+                      <th className="border px-3 py-2">Compliance</th>
+                      <th className="border px-3 py-2">Date</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  </thead>
+                  <tbody>
+                    {auditData.map((row) => (
+                      <tr
+                        key={row.audit_id}
+                        className="cursor-pointer hover:bg-gray-100"
+                        onClick={() => setSelectedAudit(row)}
+                      >
+                        <td className="border px-3 py-2">{row.company_name}</td>
+                        <td className="border px-3 py-2">{row.compliance_status}</td>
+                        <td className="border px-3 py-2">
+                          {new Date(row.created_at).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
           </div>
-        </div>
         </div>
       </div>
     </div>

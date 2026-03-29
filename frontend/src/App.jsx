@@ -11,7 +11,6 @@ import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import CompanyDetails from "./pages/CompanyDetails";
 import AuditLogs from "./pages/AuditLogs";
-import ScholarReviews from "./pages/ScholarReviews";
 import DataAnalysis from "./pages/DataAnalysis";
 
 function App() {
@@ -57,10 +56,6 @@ function App() {
         <Route
           path="/audit-logs"
           element={session ? <AuditLogs /> : <Navigate to="/login" />}
-        />
-        <Route
-          path="/scholar-reviews"
-          element={session ? <ScholarReviews /> : <Navigate to="/login" />}
         />
         <Route
           path="/data-analysis"
