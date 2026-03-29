@@ -308,7 +308,23 @@ def compliance(company_id: str, request: Request):
     reviews = fetch_scholar_approvals(company_id, tenant_id)
     result["scholar_reviews"] = reviews
     return result
+import numpy as np
 
+def clean_for_json(obj):
+    """
+    Convert NumPy types to native Python types for JSON serialization
+    """
+    if isinstance(obj, dict):
+        return {k: clean_for_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_for_json(v) for v in obj]
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    return obj
 # ----------------------------
 # 10️⃣ Scholar Review Endpoints
 # ----------------------------
@@ -786,7 +802,8 @@ async def analyze_bulk(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/analyze/single")
-async def analyze_single_company(data: SingleCompanyRequest, request: Request):
+async def analyze_single_company(data: SingleCompanyRequest, request: Request, payload: dict):
+
     try:
         db = SessionLocal()
         tenant_id = getattr(request.state, "tenant_id", "demo-tenant")
