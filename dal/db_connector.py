@@ -16,6 +16,27 @@ from supabase import create_client, Client
 import numpy as np
 
 
+@contextmanager
+def get_cursor():
+    """
+    Context manager for a psycopg2 cursor using connection pool.
+    Automatically commits or rolls back transactions.
+    """
+    conn = None
+    try:
+        conn = POOL.getconn()
+        cur = conn.cursor()
+        yield cur
+        conn.commit()
+    except Exception:
+        if conn:
+            conn.rollback()
+        raise
+    finally:
+        if conn:
+            cur.close()
+            POOL.putconn(conn)
+
 def serialize(obj):
     """Recursively convert all non-JSON-safe types"""
 
@@ -355,6 +376,28 @@ def fetch_companies(tenant_id: str) -> List[Dict]:
         for c in companies
     ]
 
+def fetch_features(tenant_id: str):
+    """
+    Fetch numeric features for ML from compliance_audit_log
+    """
+    res = supabase.table("compliance_audit_log").select(
+        "company_id, total_assets, total_debt, total_income, "
+        "non_halal_income, cash_and_interest_securities, risk_score"
+    ).eq("tenant_id", tenant_id).execute()
+
+    companies = res.data if res.data else []
+
+    features_list = []
+    for c in companies:
+        features_list.append({
+            "company_id": c["company_id"],
+            "debt_ratio": (c.get("total_debt") or 0) / ((c.get("total_assets") or 0) + 1),
+            "liquidity_ratio": (c.get("cash_and_interest_securities") or 0) / ((c.get("total_assets") or 0) + 1),
+            "non_halal_income_ratio": (c.get("non_halal_income") or 0) / ((c.get("total_income") or 0) + 1),
+            "risk_score": c.get("risk_score") or 0,
+        })
+
+    return features_list
 
 def populate_features(tenant_id: str):
     """
@@ -425,61 +468,37 @@ import os
 # Initialize Supabase client
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-def save_result(audit_data: dict):
 
-    # insert into compliance_audit_log
+
+
+
+def save_result(company_id: str, tenant_id: str, compliance_status: str, violations: list, extra_data: dict = None):
+    """
+    Save a compliance audit record to Supabase.
+    """
+    audit_data = {
+        "company_id": company_id,
+        "tenant_id": tenant_id,
+        "compliance_status": compliance_status,
+        "violations_count": len(violations),
+        "audit_details": {"violations": violations},
+        "created_at": datetime.utcnow().isoformat()
+    }
+
+    if extra_data:
+        audit_data.update(extra_data)
+
     res = supabase.table("compliance_audit_log").insert(audit_data).execute()
 
-    # check for errors safely
     if hasattr(res, "status_code") and res.status_code >= 400:
         print("❌ Failed to save audit record:", res.data)
         return False
-
-    # fallback for older versions
     if hasattr(res, "error") and res.error:
         print("❌ Failed to save audit record:", res.error)
         return False
-def fetch_result_by_company(company_id: str, tenant_id: str):
-    with get_cursor() as cur:
-        cur.execute("""
-            SELECT compliance_status, violations, created_at
-            FROM compliance_results
-            WHERE company_id = %s AND tenant_id = %s
-            ORDER BY created_at DESC
-            LIMIT 1
-        """, (company_id, tenant_id))
-        row = cur.fetchone()
 
-    if not row:
-        return None
-
-    return {
-        "status": row[0],
-        "violations": row[1].split(", ") if row[1] else [],
-        "date": row[2]
-    }
-
-def fetch_audit_logs(tenant_id: str):
-    with get_cursor() as cur:
-        cur.execute("""
-            SELECT company_id, compliance_status, violations, created_at
-            FROM compliance_results
-            WHERE tenant_id = %s
-            ORDER BY created_at DESC
-            LIMIT 20
-        """, (tenant_id,))
-        rows = cur.fetchall()
-
-    return [
-        {
-            "company": r[0],
-            "status": r[1],
-            "violations": len(r[2].split(", ")) if r[2] else 0,
-            "date": r[3]
-        }
-        for r in rows
-    ]
-
+    print(f"✅ Audit record saved for company {company_id}")
+    return True
 # -----------------------------
 # Scholar Approvals
 # -----------------------------

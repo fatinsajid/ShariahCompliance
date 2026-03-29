@@ -24,9 +24,8 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 # ----------------------------
 def fetch_company_financials(tenant_id: str):
     response = (
-        supabase.table("companies")
-        .select("company_id, total_assets, total_debt, total_income, non_halal_income, cash_and_interest_securities")
-        .eq("tenant_id", tenant_id)
+        supabase.table("compliance_audit_log")
+        .select("company_name, company_industry, total_assets, total_debt, total_income, non_halal_income, cash_and_interest_securities")
         .execute()
     )
 

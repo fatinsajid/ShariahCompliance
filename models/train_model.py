@@ -24,7 +24,7 @@ db_connector.initialize_tables()
 # Step 1: Detect tenants with companies
 # -------------------------------
 with db_connector.get_cursor() as cur:
-    cur.execute("SELECT DISTINCT tenant_id FROM companies;")
+    cur.execute("SELECT DISTINCT tenant_id FROM compliance_audit_log;")
     tenant_ids = [r[0] for r in cur.fetchall()]
 
 if not tenant_ids:
