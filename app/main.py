@@ -53,9 +53,13 @@ app.add_middleware(
 # ----------------------------
 # 3️⃣ ML Models
 # ----------------------------
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "risk_model_v1.pkl")
-ANOMALY_MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "anomaly_model_v1.pkl")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+MODEL_PATH = os.path.join(BASE_DIR, "..", "models", "risk_model_v1.pkl")
+ANOMALY_MODEL_PATH = os.path.join(BASE_DIR, "..", "models", "anomaly_model_v1.pkl")
+
+MODEL_PATH = os.path.abspath(MODEL_PATH)
+ANOMALY_MODEL_PATH = os.path.abspath(ANOMALY_MODEL_PATH)
 
 # ----------------------------
 # 4️⃣ Utility Functions
