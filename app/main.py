@@ -114,7 +114,7 @@ def analyze_and_log_company(tenant_id: str, company: dict, triggered_by: str) ->
         "triggered_by": triggered_by,
         "created_at": datetime.utcnow().isoformat(),
         "company_name": company.get("company_name"),
-        "company_industry": company.get("sector"),
+        "company_industry": company.get("company_industry"),
         "audit_details": result,
         "violations_count": len(result.get("violations", [])),
         "risk_score": result.get("risk_score"),
@@ -374,6 +374,7 @@ class CompanyInput(BaseModel):
     total_income: float
     non_halal_income: float
     cash_and_interest_securities: float
+
 
 @app.post("/screen")
 def screen_company(payload: dict, request: Request):
@@ -814,7 +815,7 @@ async def analyze_single_company(payload: CompanyInput, request: Request):
         payload = {
             "company_id": company_id,
             "company_name": data.company_name,
-            "sector": data.company_industry,
+            "company_indusry": data.company_industry,
             "total_assets": data.total_assets,
             "total_debt": data.total_debt,
             "total_income": data.total_income,
