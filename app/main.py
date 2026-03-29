@@ -37,8 +37,6 @@ from services.final_decision_engine import FinalDecisionEngine
 from services.event_publisher import publish_compliance_events
 from services.shariah_governance import (
     check_shariah_compliance,
-    get_active_fatwa,
-    fatwa_is_approved,
     run_shariah_governance
 )
 from services.explainability_engine import generate_explanation
