@@ -453,7 +453,13 @@ def fetch_audit_logs(tenant_id: str):
 # -----------------------------
 # Scholar Approvals
 # -----------------------------
-
+def fetch_scholar_approvals(fatwa_id: str):
+    with get_cursor() as cur:
+        cur.execute(
+            "SELECT scholar_id, decision FROM scholar_review WHERE fatwa_id=%s",
+            (fatwa_id,)
+        )
+        return cur.fetchall()
 # -----------------------------
 # Audit Logs
 # -----------------------------

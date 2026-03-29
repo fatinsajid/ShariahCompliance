@@ -6,42 +6,6 @@ from services.scholar_consensus import compute_scholar_consensus
 from services.explainability_engine import generate_ml_explanation
 from dal.db_connector import fetch_fatwa_by_id
 
-def get_active_fatwa(rule_code: str, tenant_id: str):
-    """
-    Return the latest active fatwa for a given rule and tenant.
-    Returns: (fatwa_id, fatwa_version, ruling) or None
-    """
-    fatwa = fetch_fatwa_by_id(rule_code, tenant_id)
-    if not fatwa:
-        return None
-
-    return fatwa["fatwa_id"], fatwa["fatwa_version"], fatwa["ruling"]
-
-def fatwa_is_approved(fatwa_id: str, tenant_id: str) -> bool:
-    """
-    Check whether a fatwa is approved and active.
-
-    Thesis purpose:
-    - runtime governance enforcement
-    - prevents use of draft/rejected rulings
-    - ensures auditability
-    """
-
-    try:
-        fatwa = fetch_fatwa_by_id(fatwa_id, tenant_id)
-
-        if not fatwa:
-            return False
-
-        # expected fields in your fatwa table
-        status = fatwa.get("status")
-        is_active = fatwa.get("is_active", True)
-
-        return status == "APPROVED" and is_active is True
-
-    except Exception as e:
-        print(f"[GOVERNANCE] fatwa approval check failed: {e}")
-        return False
 
 
 # ================================
