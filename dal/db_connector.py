@@ -15,6 +15,7 @@ from sqlalchemy.orm import sessionmaker, Session
 from supabase import create_client, Client
 
 
+
 # -----------------------------
 # 🔴 LOAD ENV FIRST (CRITICAL FIX)
 # -----------------------------
@@ -532,7 +533,7 @@ def save_full_pipeline(company: Dict, tenant_id: str, result: Dict):
             "status": result.get("compliance_status", "pending"),
             "violations": len(result.get("violations", [])),
             "risk_score": result.get("risk_score", 0),
-            "created_at": datetime.utcnow()
+            "created_at": datetime.utcnow().isoformat()
         }
         insert_audit_log(log_entry)
 
