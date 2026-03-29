@@ -1,19 +1,15 @@
 # services/final_decision_engine.py
 
 import pandas as pd
-from dal.db_connector import (
-    save_result,
-    populate_features,
-    fetch_companies,
-)
+from dal.db_connector import save_result, populate_features
 from services.compliance_engine import check_shariah_compliance
 from services.explainability_engine import generate_explanation
-from services.shariah_governance import get_active_fatwa, fatwa_is_approved, log_compliance_decision
 from services.anomaly_detector import detect_anomaly
-
 import os
 import joblib
 import json
+import uuid
+from datetime import datetime
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODEL_PATH = os.path.join(PROJECT_ROOT, "models", "risk_model_v1.pkl")
@@ -26,10 +22,10 @@ with open(THRESHOLDS_PATH, "r") as f:
 # Load ML model once
 try:
     model = joblib.load(MODEL_PATH)
-    print("✅ FinalDecisionEngine: ML model loaded")
+    print("✅ ML model loaded")
 except Exception as e:
     model = None
-    print(f"❌ FinalDecisionEngine: ML model failed to load: {e}")
+    print(f"❌ ML model failed to load: {e}")
 
 
 class FinalDecisionEngine:
@@ -37,22 +33,15 @@ class FinalDecisionEngine:
         self.tenant_id = tenant_id
 
     def evaluate_company(self, company: dict):
-        """
-        Runs full decision pipeline:
-        1. Compliance rule check
-        2. ML risk scoring
-        3. Anomaly detection
-        4. Explainability
-        5. Shariah governance binding (fatwa check & audit)
-        6. Save results to DB
-        """
-        company_id = company.get("company_id")
+        company_id = company.get("company_id") or str(uuid.uuid4())
+        company_name = company.get("company_name")
+        company_industry = company.get("company_industry")
 
         # ----------------------------
         # 1️⃣ Compliance Check
         # ----------------------------
         status, violations = check_shariah_compliance(company, THRESHOLDS)
-        explanation = generate_explanation(company, status, violations, THRESHOLDS)
+
         # ----------------------------
         # 2️⃣ ML Risk Scoring
         # ----------------------------
@@ -65,21 +54,22 @@ class FinalDecisionEngine:
             cash = company.get("cash_and_interest_securities", 0)
 
             X = pd.DataFrame([{
-                "debt_ratio": total_debt / total_assets,
-                "liquidity_ratio": cash / total_assets,
-                "non_halal_income_ratio": non_halal_income / total_income,
-                "other_financial_metric1": total_income / total_assets,
-                "other_financial_metric2": total_debt / total_income,
+                "debt_ratio": total_debt / max(total_assets, 1),
+                "liquidity_ratio": cash / max(total_assets, 1),
+                "non_halal_income_ratio": non_halal_income / max(total_income, 1),
+                "other_financial_metric1": total_income / max(total_assets, 1),
+                "other_financial_metric2": total_debt / max(total_income, 1),
             }])
+
             try:
                 if hasattr(model, "predict_proba"):
                     probs = model.predict_proba(X)
-                    risk_score = probs[0][1] if probs.shape[1] > 1 else probs[0][0]
+                    risk_score = float(probs[0][1] if probs.shape[1] > 1 else probs[0][0])
                 else:
-                    risk_score = model.predict(X)[0]
+                    risk_score = float(model.predict(X)[0])
             except Exception as e:
-                risk_score = None
                 print(f"❌ ML prediction failed: {e}")
+                risk_score = None
 
         # ----------------------------
         # 3️⃣ Anomaly Detection
@@ -92,34 +82,43 @@ class FinalDecisionEngine:
         explanation = generate_explanation(company, status, violations, THRESHOLDS)
 
         # ----------------------------
-        # 5️⃣ Shariah Governance Binding
+        # 5️⃣ Bypass Fatwa
         # ----------------------------
-        rule_code = "SHARIAH_SCREENING"
-        fatwa = get_active_fatwa(rule_code, self.tenant_id)
-
-        fatwa_status = None
-        if fatwa:
-            fatwa_id, fatwa_version, ruling = fatwa
-            if not fatwa_is_approved(fatwa_id):
-                fatwa_status = "pending_approval"
-            else:
-                fatwa_status = "approved"
-
-            # log audit trail
-            log_compliance_decision(
-                tenant_id=self.tenant_id,
-                company_id=company_id,
-                rule_code=rule_code,
-                fatwa_version=fatwa_version,
-                status=status,
-            )
-        else:
-            fatwa_status = "none"
+        fatwa_status = None  # explicitly bypassed
 
         # ----------------------------
-        # 6️⃣ Save results
+        # 6️⃣ Save results to DB
         # ----------------------------
-        save_result(company_id, self.tenant_id, status, violations)
+        audit_data = {
+            "audit_id": str(uuid.uuid4()),
+            "tenant_id": self.tenant_id,
+            "company_id": company_id,
+            "rule_code": "SHARIAH_SCREENING",
+            "fatwa_version": None,
+            "compliance_status": status,
+            "triggered_by": "system",
+            "created_at": datetime.utcnow(),
+            "company_name": company_name,
+            "company_industry": company_industry,
+            "audit_details": None,
+            "violations_count": len(violations),
+            "risk_score": risk_score,
+            "explanation": explanation,
+            "scholar_reviews": None,
+            "anomaly_flag": anomalies,
+            "total_assets": company.get("total_assets"),
+            "total_debt": company.get("total_debt"),
+            "total_income": company.get("total_income"),
+            "non_halal_income": company.get("non_halal_income"),
+            "cash_and_interest_securities": company.get("cash_and_interest_securities"),
+            "fatwa_id": None,
+            "title": None,
+            "description": None,
+            "ruling": None,
+            "data": None,
+        }
+
+        save_result(audit_data)
         populate_features(self.tenant_id)
 
         # ----------------------------
@@ -129,7 +128,7 @@ class FinalDecisionEngine:
             "company_id": company_id,
             "status": status,
             "violations": violations,
-            "risk_score": float(risk_score) if risk_score is not None else None,
+            "risk_score": risk_score,
             "anomalies": anomalies,
             "explanation": explanation,
             "fatwa_status": fatwa_status,
