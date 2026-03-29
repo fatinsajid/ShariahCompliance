@@ -196,7 +196,9 @@ async def supabase_auth_middleware(request: Request, call_next):
     Dashboard is public if JWT is missing.
     """
     auth_header = request.headers.get("Authorization")
-    tenant_id = None
+    tenant_id = getattr(request.state, "tenant_id", None)
+    if not tenant_id:
+        tenant_id = "550e8400-e29b-41d4-a716-446655440000"
 
     # 🔒 Decode JWT if provided
     if auth_header and auth_header.startswith("Bearer "):
@@ -384,6 +386,7 @@ def screen_company(payload: dict, request: Request):
 
     # Compliance
     status, violations = check_shariah_compliance(company, THRESHOLDS)
+    anomalies = detect_anomaly(company)
     explanation = generate_explanation(company, status, violations, THRESHOLDS)
 
     # Governance

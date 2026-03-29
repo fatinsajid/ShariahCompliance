@@ -399,23 +399,16 @@ import os
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def save_result(audit_data: dict):
-    """
-    Save a full audit record to compliance_audit_log.
-    Expects a dictionary with keys matching table columns:
-        - audit_id, tenant_id, company_id, rule_code, fatwa_version,
-          compliance_status, triggered_by, created_at, company_name,
-          company_industry, audit_details, violations_count, risk_score,
-          explanation, scholar_reviews, anomaly_flag, total_assets,
-          total_debt, total_income, non_halal_income, cash_and_interest_securities,
-          fatwa_id, title, description, ruling, data
-    """
-
     try:
-        clean_data = serialize(audit_data)
         res = supabase.table("compliance_audit_log").insert(audit_data).execute()
-        if res.status_code >= 400:
-            print(f"❌ Supabase insert failed: {res.data}")
-        return res
+
+        # ✅ Proper error handling
+        if res.error:
+            print("❌ Supabase insert error:", res.error)
+            raise Exception(res.error.message)
+
+        print("✅ Audit record inserted:", res.data)
+
     except Exception as e:
         print(f"❌ Failed to save audit record: {e}")
         raise

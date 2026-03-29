@@ -142,6 +142,8 @@ class FinalDecisionEngine:
             "ruling": None,
             "data": None,
 }
+        audit_data["explanation"] = json.dumps(audit_data["explanation"])  # convert list → string
+        audit_data["anomaly_flag"] = str(audit_data["anomaly_flag"])
         audit_data = clean_for_json(audit_data)
         print({k: type(v) for k, v in audit_data.items()})
         save_result(audit_data)
