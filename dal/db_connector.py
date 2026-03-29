@@ -364,51 +364,32 @@ def fetch_companies(tenant_id: str) -> List[Dict]:
 # -----------------------------
 # Compliance Results
 # -----------------------------
-def save_result(
-    company_id: str,
-    tenant_id: str,
-    status: str,
-    violations: list,
-    company_info: dict = None,
-    risk_score: float = None,
-    explanation: str = None,
-    anomaly_flag: str = None
-):
-    """
-    Save the compliance result to the Supabase table `compliance_audit_log`.
-    Maps `status` -> `compliance_status` and stores violations in `audit_details`.
-    """
-    data = {
-        "tenant_id": tenant_id,
-        "company_id": company_id,
-        "rule_code": "SHARIAH_SCREENING",                 # default for now
-        "fatwa_version": None,                            # can be filled if needed
-        "compliance_status": status,                      # correct column name
-        "created_at": datetime.utcnow().isoformat(),
-        "company_name": company_info.get("name") if company_info else None,
-        "company_industry": company_info.get("industry") if company_info else None,
-        "audit_details": json.dumps(violations) if violations else None,
-        "violations_count": len(violations) if violations else 0,
-        "risk_score": risk_score,
-        "explanation": explanation,
-        "anomaly_flag": anomaly_flag,
-        "total_assets": company_info.get("total_assets") if company_info else None,
-        "total_debt": company_info.get("total_debt") if company_info else None,
-        "total_income": company_info.get("total_income") if company_info else None,
-        "non_halal_income": company_info.get("non_halal_income") if company_info else None,
-        "cash_and_interest_securities": company_info.get("cash_and_interest_securities") if company_info else None,
-        "title": None,
-        "description": None,
-        "ruling": None,
-        "data": None
-    }
 
-    # Insert into Supabase
-    res = supabase.table("compliance_audit_log").insert(data).execute()
-    if res.error:
-        print("❌ Failed to save result:", res.error)
-    return res.data
+# dal/db_connector.py
+import os
 
+# Initialize Supabase client
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+def save_result(audit_data: dict):
+    """
+    Save a full audit record to compliance_audit_log.
+    Expects a dictionary with keys matching table columns:
+        - audit_id, tenant_id, company_id, rule_code, fatwa_version,
+          compliance_status, triggered_by, created_at, company_name,
+          company_industry, audit_details, violations_count, risk_score,
+          explanation, scholar_reviews, anomaly_flag, total_assets,
+          total_debt, total_income, non_halal_income, cash_and_interest_securities,
+          fatwa_id, title, description, ruling, data
+    """
+    try:
+        res = supabase.table("compliance_audit_log").insert(audit_data).execute()
+        if res.status_code >= 400:
+            print(f"❌ Supabase insert failed: {res.data}")
+        return res
+    except Exception as e:
+        print(f"❌ Failed to save audit record: {e}")
+        raise
 def fetch_result_by_company(company_id: str, tenant_id: str):
     with get_cursor() as cur:
         cur.execute("""
