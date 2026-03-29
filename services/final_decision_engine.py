@@ -106,7 +106,7 @@ class FinalDecisionEngine:
                     cleaned[k] = v
             return cleaned
 
-        audit_data = clean_for_json(audit_data)
+
         company_id = company.get("company_id") or str(uuid.uuid4())
         audit_data = {
             "audit_id": str(uuid.uuid4()),
@@ -118,17 +118,16 @@ class FinalDecisionEngine:
             "triggered_by": "system",
             "created_at": datetime.utcnow().isoformat(),
 
-            "company_name": company_name,
-            "company_industry": company_industry,
+            "company_name": company.get("company_name"),
+            "company_industry": company.get("company_industry"),
 
             "audit_details": None,
-            "violations_count": len(violations) if violations else 0,
+            "violations_count": len(violations),
             "risk_score": float(risk_score) if risk_score is not None else None,
-
-            "explanation": json.dumps(explanation) if isinstance(explanation, (dict, list)) else explanation,
+            "explanation": explanation,
 
             "scholar_reviews": None,
-            "anomaly_flag": bool(anomalies) if anomalies is not None else None,
+            "anomaly_flag": str(anomalies),  # ensure safe
 
             "total_assets": company.get("total_assets"),
             "total_debt": company.get("total_debt"),
@@ -136,12 +135,13 @@ class FinalDecisionEngine:
             "non_halal_income": company.get("non_halal_income"),
             "cash_and_interest_securities": company.get("cash_and_interest_securities"),
 
+    # fatwa disabled
             "fatwa_id": None,
             "title": None,
             "description": None,
             "ruling": None,
             "data": None,
-        }
+}       audit_data = clean_for_json(audit_data)
         print({k: type(v) for k, v in audit_data.items()})
         save_result(audit_data)
         populate_features(self.tenant_id)
