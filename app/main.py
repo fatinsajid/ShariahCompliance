@@ -121,8 +121,10 @@ def fetch_companies_from_logs(tenant_id: str):
 # ----------------------------
 
 class FinalDecisionEngine:
-    def __init__(self, tenant_id: str):
+    def __init__(self, tenant_id: str, model, anomaly_model):
         self.tenant_id = tenant_id
+        self.model = model
+        self.anomaly_model = anomaly_model
 
     def evaluate_company(self, company: Dict):
         X = pd.DataFrame([{
@@ -133,20 +135,16 @@ class FinalDecisionEngine:
             "cash_and_interest_securities": company["cash_and_interest_securities"],
         }])
 
-        risk_score = float(model.predict_proba(X)[0][1])
-        anomaly_flag = anomaly_model.predict(X)[0]
-
-        status = "compliant" if risk_score < 0.5 else "non-compliant"
-        violations = [] if status == "compliant" else ["Financial threshold exceeded"]
+        risk_score = float(self.model.predict_proba(X)[0][1])
+        anomaly_flag = self.anomaly_model.predict(X)[0]
 
         return {
             "risk_score": risk_score,
-            "status": status,
-            "violations": violations,
+            "status": "compliant" if risk_score < 0.5 else "non-compliant",
+            "violations": [],
             "explanation": ["Auto-generated explanation"],
             "anomalies": {"anomaly_flag": anomaly_flag}
         }
-
 # ----------------------------
 # 8️⃣ Pydantic Models
 # ----------------------------
@@ -170,7 +168,7 @@ def run_pipeline(tenant_id: str, payload: CompanyInput):
     company_data = payload.dict()
     company_data["company_id"] = company_id
 
-    engine = FinalDecisionEngine(tenant_id)
+    engine = FinalDecisionEngine(tenant_id, model, anomaly_model)
     result = engine.evaluate_company(company_data)
     result = clean_for_json(result)
 
