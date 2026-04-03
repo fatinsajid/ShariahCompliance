@@ -105,7 +105,11 @@ async def auth_middleware(request: Request, call_next):
 def insert_audit_log(data: Dict):
     res = supabase.table("compliance_audit_log").insert(data).execute()
     return res.data
-
+def insert_audit_logs_bulk(data_list: list):
+    if not data_list:
+        return []
+    res = supabase.table("compliance_audit_log").insert(data_list).execute()
+    return res.data
 
 def fetch_audit_logs(tenant_id: str):
     res = supabase.table("compliance_audit_log").select("*").eq("tenant_id", tenant_id).execute()
@@ -263,73 +267,65 @@ async def analyze_bulk(request: Request, file: UploadFile = File(...)):
     content = await file.read()
     df = pd.read_csv(io.BytesIO(content))
 
-    # Normalize column names: lowercase, replace spaces with _
+    # Normalize columns
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
+    audit_records = []
     results = []
     errors = []
-    audit_records = []
 
     for idx, row in df.iterrows():
         try:
-            # Validate CSV row with Pydantic
             payload = CompanyInput(**row.to_dict())
+            company_id = str(uuid4())
+            company_data = payload.dict()
+            company_data["company_id"] = company_id
 
-            # Run your pipeline to compute compliance metrics
-            pipeline_result = run_pipeline(tenant_id, payload)
-            results.append(pipeline_result)
+            engine = FinalDecisionEngine(tenant_id)
+            result = engine.evaluate_company(company_data)
+            result_clean = clean_for_json(result)
 
-            # Prepare audit record for bulk insertion
             audit_record = {
                 "audit_id": str(uuid4()),
                 "tenant_id": tenant_id,
-                "company_id": pipeline_result["company_id"],
+                "company_id": company_id,
                 "company_name": payload.company_name,
                 "company_industry": payload.company_industry,
                 "created_at": datetime.utcnow().isoformat(),
-                "audit_details": pipeline_result["result"],
-                "violations_count": len(pipeline_result["result"].get("violations", [])),
-                "risk_score": pipeline_result["result"].get("risk_score"),
-                "explanation": json.dumps(pipeline_result["result"].get("explanation")),
-                "anomaly_flag": str(pipeline_result["result"].get("anomalies", {}).get("anomaly_flag")),
+                "audit_details": result_clean,
+                "violations_count": len(result_clean.get("violations", [])),
+                "risk_score": result_clean.get("risk_score"),
+                "explanation": json.dumps(result_clean.get("explanation")),
+                "anomaly_flag": str(result_clean.get("anomalies", {}).get("anomaly_flag")),
                 "total_assets": payload.total_assets,
                 "total_debt": payload.total_debt,
                 "total_income": payload.total_income,
                 "non_halal_income": payload.non_halal_income,
                 "cash_and_interest_securities": payload.cash_and_interest_securities,
-                "compliance_status": pipeline_result["result"].get("status"),
+                "compliance_status": result_clean.get("status"),
                 "rule_code": "SHARIAH_SCREENING",
                 "fatwa_version": 1,
                 "triggered_by": "api",
-                "debt_ratio": pipeline_result["result"]["features"].get("debt_ratio"),
-                "liquidity_ratio": pipeline_result["result"]["features"].get("liquidity_ratio"),
-                "non_halal_income_ratio": pipeline_result["result"]["features"].get("non_halal_income_ratio"),
+                "debt_ratio": result_clean.get("features", {}).get("debt_ratio"),
+                "liquidity_ratio": result_clean.get("features", {}).get("liquidity_ratio"),
+                "non_halal_income_ratio": result_clean.get("features", {}).get("non_halal_income_ratio"),
             }
 
             audit_records.append(audit_record)
+            results.append({"company_id": company_id, "result": result_clean})
 
         except Exception as e:
-            errors.append({
-                "row": idx,
-                "error": str(e)
-            })
+            errors.append({"row": idx, "error": str(e)})
 
-    # Bulk insert all valid audit records into Supabase
+    # 🔹 Insert all at once
     if audit_records:
-        try:
-            res = supabase.table("compliance_audit_log").insert(audit_records).execute()
-            print("Supabase bulk insert response:", res.data)
-        except Exception as e:
-            print("Supabase bulk insert failed:", e)
-            # If bulk insert fails, mark all rows as failed
-            for record in audit_records:
-                errors.append({"company_id": record["company_id"], "error": str(e)})
+        insert_audit_logs_bulk(audit_records)
 
     return {
         "processed": len(results),
         "failed": len(errors),
         "results": results,
-        "errors": errors
+        "errors": errors,
     }
 @app.get("/audit/logs")
 def get_logs(request: Request):
