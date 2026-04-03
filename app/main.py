@@ -252,15 +252,21 @@ def analyze_single(payload: CompanyInput, request: Request):
 
 @app.post("/api/analyze/bulk")
 async def analyze_bulk(request: Request, file: UploadFile = File(...)):
+    # Use tenant_id from auth middleware
     tenant_id = request.state.tenant_id
+    if not tenant_id:
+        # fallback tenant for local testing (replace with your real UUID)
+        tenant_id = "11111111-1111-1111-1111-111111111111"
 
+    # Validate file type
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files allowed")
 
+    # Read CSV content
     content = await file.read()
     df = pd.read_csv(io.BytesIO(content))
 
-    # Normalize column names
+    # Normalize column names to match CompanyInput fields
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
     results = []
@@ -268,9 +274,13 @@ async def analyze_bulk(request: Request, file: UploadFile = File(...)):
 
     for idx, row in df.iterrows():
         try:
+            # Create Pydantic payload
             payload = CompanyInput(**row.to_dict())
+
+            # Run pipeline (inserts into compliance_audit_log)
             result = run_pipeline(tenant_id, payload)
             results.append(result)
+
         except Exception as e:
             errors.append({
                 "row": idx,
