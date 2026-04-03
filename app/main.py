@@ -251,20 +251,38 @@ def analyze_single(payload: CompanyInput, request: Request):
 
 
 @app.post("/api/analyze/bulk")
-async def analyze_bulk(file: UploadFile = File(...), request: Request = None):
+async def analyze_bulk(request: Request, file: UploadFile = File(...)):
     tenant_id = request.state.tenant_id
+
+    if not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files allowed")
 
     content = await file.read()
     df = pd.read_csv(io.BytesIO(content))
 
+    # Normalize column names
+    df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
+
     results = []
-    for _, row in df.iterrows():
-        payload = CompanyInput(**row.to_dict())
-        result = run_pipeline(tenant_id, payload)
-        results.append(result)
+    errors = []
 
-    return {"processed": len(results), "results": results}
+    for idx, row in df.iterrows():
+        try:
+            payload = CompanyInput(**row.to_dict())
+            result = run_pipeline(tenant_id, payload)
+            results.append(result)
+        except Exception as e:
+            errors.append({
+                "row": idx,
+                "error": str(e)
+            })
 
+    return {
+        "processed": len(results),
+        "failed": len(errors),
+        "results": results,
+        "errors": errors
+    }
 
 @app.get("/audit/logs")
 def get_logs(request: Request):
