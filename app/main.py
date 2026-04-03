@@ -18,7 +18,6 @@ import pandas as pd
 
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from jose import jwt, JWTError
@@ -77,19 +76,28 @@ def clean_for_json(obj):
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     auth_header = request.headers.get("Authorization")
-    tenant_id = payload.get("sub")
+
+    tenant_id = None  # default safe
 
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         try:
-            payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
-            tenant_id = payload.get("sub") or tenant_id
+            payload = jwt.decode(
+                token,
+                SUPABASE_JWT_SECRET,
+                algorithms=["HS256"],
+                audience="authenticated"
+            )
+            tenant_id = payload.get("sub")
         except JWTError:
             return JSONResponse(status_code=401, content={"detail": "Invalid token"})
 
+    # fallback (VERY IMPORTANT for UUID column)
+    if not tenant_id:
+        tenant_id = str(uuid4())
+
     request.state.tenant_id = tenant_id
     return await call_next(request)
-
 # ----------------------------
 # 6️⃣ DAL (Supabase Only)
 # ----------------------------
@@ -117,7 +125,11 @@ def fetch_companies_from_logs(tenant_id: str):
 # 7️⃣ Service Layer
 # ----------------------------
 
-def compute_metrics(self, company: Dict):
+class FinalDecisionEngine:
+    def __init__(self, tenant_id: str):
+        self.tenant_id = tenant_id
+
+    def compute_metrics(self, company: Dict):
         total_assets = company.get("total_assets", 1)
         total_debt = company.get("total_debt", 0)
         total_income = company.get("total_income", 1)
@@ -129,9 +141,9 @@ def compute_metrics(self, company: Dict):
         non_halal_ratio = non_halal_income / (total_income + 1)
 
         risk_score = (
-                0.5 * debt_ratio +
-                0.3 * non_halal_ratio +
-                0.2 * liquidity_ratio
+            0.5 * debt_ratio +
+            0.3 * non_halal_ratio +
+            0.2 * liquidity_ratio
         )
 
         return {
@@ -140,12 +152,6 @@ def compute_metrics(self, company: Dict):
             "liquidity_ratio": liquidity_ratio,
             "non_halal_income_ratio": non_halal_ratio
         }
-
-class FinalDecisionEngine:
-    def __init__(self, tenant_id: str):
-        self.tenant_id = tenant_id
-
-
     def evaluate_company(self, company: Dict):
 
         metrics = self.compute_metrics(company)
