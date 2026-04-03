@@ -8,7 +8,7 @@
 import os
 import io
 import json
-from uuid import uuid4
+from uuid import uuid4, NAMESPACE_URL
 from datetime import datetime
 from typing import Optional, List, Dict
 
@@ -204,7 +204,7 @@ class CompanyInput(BaseModel):
 # ----------------------------
 
 def run_pipeline(tenant_id: str, payload: CompanyInput):
-    company_id = str(uuid4())
+    company_id = str(uuid4(NAMESPACE_URL, f"{tenant_id}-{payload.company_name}"))
 
     company_data = payload.dict()
     company_data["company_id"] = company_id
@@ -240,7 +240,10 @@ def run_pipeline(tenant_id: str, payload: CompanyInput):
         "non_halal_income_ratio": result.get("features", {}).get("non_halal_income_ratio"),
         }
 
-    insert_audit_log(audit_record)
+    res = supabase.table("compliance_audit_log").upsert(
+        audit_record,
+        on_conflict="company_id"  # ensures unique per company
+    ).execute()
 
     return {"company_id": company_id, "result": result}
 
@@ -277,7 +280,7 @@ async def analyze_bulk(request: Request, file: UploadFile = File(...)):
     for idx, row in df.iterrows():
         try:
             payload = CompanyInput(**row.to_dict())
-            company_id = str(uuid4())
+            company_id = str(uuid4(NAMESPACE_URL, f"{tenant_id}-{payload.company_name}"))
             company_data = payload.dict()
             company_data["company_id"] = company_id
 
