@@ -14,7 +14,7 @@ from typing import Optional, List, Dict
 
 import numpy as np
 import pandas as pd
-import joblib
+
 
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,38 +53,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ----------------------------
-# 3️⃣ ML Models
-# ----------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-MODEL_PATH = os.path.join(BASE_DIR, "..", "models", "risk_model_v1.pkl")
-ANOMALY_MODEL_PATH = os.path.join(BASE_DIR, "..", "models", "anomaly_model_v1.pkl")
-
-MODEL_PATH = os.path.abspath(MODEL_PATH)
-ANOMALY_MODEL_PATH = os.path.abspath(ANOMALY_MODEL_PATH)
-
-model = None
-anomaly_model = None
-
-try:
-    print("Loading model from:", MODEL_PATH)
-    model = joblib.load(MODEL_PATH)
-    print("✅ Model loaded")
-except Exception as e:
-    print("❌ Model load failed:", e)
-
-try:
-    print("Loading anomaly model from:", ANOMALY_MODEL_PATH)
-    anomaly_model = joblib.load(ANOMALY_MODEL_PATH)
-    print("✅ Anomaly model loaded")
-except Exception as e:
-    print("❌ Anomaly model load failed:", e)
-if model is None or anomaly_model is None:
-    raise HTTPException(
-        status_code=500,
-        detail="ML models not loaded. Check deployment."
-    )
 
 # ----------------------------
 # 4️⃣ Utility Functions
@@ -150,40 +118,62 @@ def fetch_companies_from_logs(tenant_id: str):
 # ----------------------------
 
 class FinalDecisionEngine:
-    def __init__(self, tenant_id: str, model, anomaly_model):
+    def __init__(self, tenant_id: str):
         self.tenant_id = tenant_id
-        self.model = model
-        self.anomaly_model = anomaly_model
 
-    def prepare_features(self, company_data):
-        # Compute features your model was trained on
-        debt_ratio = company_data['total_debt'] / company_data['total_assets'] if company_data[
-                                                                                      'total_assets'] != 0 else 0
-        liquidity_ratio = company_data['cash_and_interest_securities'] / company_data['total_assets'] if company_data[
-                                                                                                             'total_assets'] != 0 else 0
-        non_halal_income_ratio = company_data['non_halal_income'] / company_data['total_income'] if company_data[
-                                                                                                        'total_income'] != 0 else 0
+    def compute_metrics(company: Dict):
+        total_assets = company.get("total_assets", 1)
+        total_debt = company.get("total_debt", 0)
+        total_income = company.get("total_income", 1)
+        non_halal_income = company.get("non_halal_income", 0)
+        cash = company.get("cash_and_interest_securities", 0)
 
-        return pd.DataFrame([{
-            'debt_ratio': debt_ratio,
-            'liquidity_ratio': liquidity_ratio,
-            'non_halal_income_ratio': non_halal_income_ratio,
-            'other_financial_metric1': 0,  # placeholder
-            'other_financial_metric2': 0  # placeholder
-        }])
+        debt_ratio = total_debt / (total_assets + 1)
+        liquidity_ratio = cash / (total_assets + 1)
+        non_halal_ratio = non_halal_income / (total_income + 1)
 
-    def evaluate_company(self, company: Dict):
-        X = self.prepare_features(company)
-
-        risk_score = float(self.model.predict_proba(X)[0][1])
-        anomaly_flag = self.anomaly_model.predict(X)[0]
+        risk_score = (
+                0.5 * debt_ratio +
+                0.3 * non_halal_ratio +
+                0.2 * liquidity_ratio
+        )
 
         return {
-            "risk_score": risk_score,
-            "status": "compliant" if risk_score < 0.5 else "non-compliant",
-            "violations": [],
-            "explanation": ["Auto-generated explanation"],
-            "anomalies": {"anomaly_flag": anomaly_flag}
+            "risk_score": round(risk_score, 4),
+            "debt_ratio": debt_ratio,
+            "liquidity_ratio": liquidity_ratio,
+            "non_halal_income_ratio": non_halal_ratio
+        }
+
+    def evaluate_company(self, company: Dict):
+
+        metrics = compute_metrics(company)
+
+        # Simple rule-based compliance
+        violations = []
+
+        if metrics["debt_ratio"] > 0.33:
+            violations.append("Debt ratio exceeds 33%")
+
+        if metrics["non_halal_income_ratio"] > 0.05:
+            violations.append("Non-halal income exceeds 5%")
+
+        status = "non-compliant" if violations else "compliant"
+
+        # Simple anomaly logic
+        anomaly_flag = "yes" if metrics["debt_ratio"] > 0.6 else "no"
+
+        return {
+            "risk_score": metrics["risk_score"],
+            "status": status,
+            "violations": violations,
+            "explanation": [
+                f"Debt ratio: {metrics['debt_ratio']:.2f}",
+                f"Non-halal income ratio: {metrics['non_halal_income_ratio']:.2f}",
+                f"Liquidity ratio: {metrics['liquidity_ratio']:.2f}"
+            ],
+            "anomalies": {"anomaly_flag": anomaly_flag},
+            "features": metrics
         }
 # ----------------------------
 # 8️⃣ Pydantic Models
@@ -208,7 +198,7 @@ def run_pipeline(tenant_id: str, payload: CompanyInput):
     company_data = payload.dict()
     company_data["company_id"] = company_id
 
-    engine = FinalDecisionEngine(tenant_id, model, anomaly_model)
+    engine = FinalDecisionEngine(tenant_id)
     result = engine.evaluate_company(company_data)
     result = clean_for_json(result)
 
@@ -232,8 +222,11 @@ def run_pipeline(tenant_id: str, payload: CompanyInput):
         "compliance_status": result.get("status"),
         "rule_code": "SHARIAH_SCREENING",
         "fatwa_version": 1,
-        "triggered_by": "api"
-    }
+        "triggered_by": "api",
+        "debt_ratio": features.get("debt_ratio"),
+        "liquidity_ratio": features.get("liquidity_ratio"),
+        "non_halal_income_ratio": features.get("non_halal_income_ratio"),
+        }
 
     insert_audit_log(audit_record)
 
