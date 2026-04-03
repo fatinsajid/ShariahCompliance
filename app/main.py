@@ -117,11 +117,7 @@ def fetch_companies_from_logs(tenant_id: str):
 # 7️⃣ Service Layer
 # ----------------------------
 
-class FinalDecisionEngine:
-    def __init__(self, tenant_id: str):
-        self.tenant_id = tenant_id
-
-    def compute_metrics(company: Dict):
+def compute_metrics(company: Dict):
         total_assets = company.get("total_assets", 1)
         total_debt = company.get("total_debt", 0)
         total_income = company.get("total_income", 1)
@@ -144,6 +140,11 @@ class FinalDecisionEngine:
             "liquidity_ratio": liquidity_ratio,
             "non_halal_income_ratio": non_halal_ratio
         }
+
+class FinalDecisionEngine:
+    def __init__(self, tenant_id: str):
+        self.tenant_id = tenant_id
+
 
     def evaluate_company(self, company: Dict):
 
@@ -201,6 +202,7 @@ def run_pipeline(tenant_id: str, payload: CompanyInput):
     engine = FinalDecisionEngine(tenant_id)
     result = engine.evaluate_company(company_data)
     result = clean_for_json(result)
+    features = result.get("features", {})
 
     audit_record = {
         "audit_id": str(uuid4()),
