@@ -250,36 +250,63 @@ def analyze_single(payload: CompanyInput, request: Request):
     return run_pipeline(tenant_id, payload)
 
 
+# ----------------------------
+# 🔹 Improved Bulk Endpoint
+# ----------------------------
 @app.post("/api/analyze/bulk")
 async def analyze_bulk(request: Request, file: UploadFile = File(...)):
-    # Use tenant_id from auth middleware
     tenant_id = request.state.tenant_id
-    if not tenant_id:
-        # fallback tenant for local testing (replace with your real UUID)
-        tenant_id = "11111111-1111-1111-1111-111111111111"
 
-    # Validate file type
     if not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files allowed")
 
-    # Read CSV content
     content = await file.read()
     df = pd.read_csv(io.BytesIO(content))
 
-    # Normalize column names to match CompanyInput fields
+    # Normalize column names: lowercase, replace spaces with _
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
     results = []
     errors = []
+    audit_records = []
 
     for idx, row in df.iterrows():
         try:
-            # Create Pydantic payload
+            # Validate CSV row with Pydantic
             payload = CompanyInput(**row.to_dict())
 
-            # Run pipeline (inserts into compliance_audit_log)
-            result = run_pipeline(tenant_id, payload)
-            results.append(result)
+            # Run your pipeline to compute compliance metrics
+            pipeline_result = run_pipeline(tenant_id, payload)
+            results.append(pipeline_result)
+
+            # Prepare audit record for bulk insertion
+            audit_record = {
+                "audit_id": str(uuid4()),
+                "tenant_id": tenant_id,
+                "company_id": pipeline_result["company_id"],
+                "company_name": payload.company_name,
+                "company_industry": payload.company_industry,
+                "created_at": datetime.utcnow().isoformat(),
+                "audit_details": pipeline_result["result"],
+                "violations_count": len(pipeline_result["result"].get("violations", [])),
+                "risk_score": pipeline_result["result"].get("risk_score"),
+                "explanation": json.dumps(pipeline_result["result"].get("explanation")),
+                "anomaly_flag": str(pipeline_result["result"].get("anomalies", {}).get("anomaly_flag")),
+                "total_assets": payload.total_assets,
+                "total_debt": payload.total_debt,
+                "total_income": payload.total_income,
+                "non_halal_income": payload.non_halal_income,
+                "cash_and_interest_securities": payload.cash_and_interest_securities,
+                "compliance_status": pipeline_result["result"].get("status"),
+                "rule_code": "SHARIAH_SCREENING",
+                "fatwa_version": 1,
+                "triggered_by": "api",
+                "debt_ratio": pipeline_result["result"]["features"].get("debt_ratio"),
+                "liquidity_ratio": pipeline_result["result"]["features"].get("liquidity_ratio"),
+                "non_halal_income_ratio": pipeline_result["result"]["features"].get("non_halal_income_ratio"),
+            }
+
+            audit_records.append(audit_record)
 
         except Exception as e:
             errors.append({
@@ -287,13 +314,23 @@ async def analyze_bulk(request: Request, file: UploadFile = File(...)):
                 "error": str(e)
             })
 
+    # Bulk insert all valid audit records into Supabase
+    if audit_records:
+        try:
+            res = supabase.table("compliance_audit_log").insert(audit_records).execute()
+            print("Supabase bulk insert response:", res.data)
+        except Exception as e:
+            print("Supabase bulk insert failed:", e)
+            # If bulk insert fails, mark all rows as failed
+            for record in audit_records:
+                errors.append({"company_id": record["company_id"], "error": str(e)})
+
     return {
         "processed": len(results),
         "failed": len(errors),
         "results": results,
         "errors": errors
     }
-
 @app.get("/audit/logs")
 def get_logs(request: Request):
     tenant_id = request.state.tenant_id
