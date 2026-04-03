@@ -77,7 +77,7 @@ def clean_for_json(obj):
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     auth_header = request.headers.get("Authorization")
-    tenant_id = "demo-tenant"
+    tenant_id = payload.get("sub")
 
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
@@ -117,7 +117,7 @@ def fetch_companies_from_logs(tenant_id: str):
 # 7️⃣ Service Layer
 # ----------------------------
 
-def compute_metrics(company: Dict):
+def compute_metrics(self, company: Dict):
         total_assets = company.get("total_assets", 1)
         total_debt = company.get("total_debt", 0)
         total_income = company.get("total_income", 1)
@@ -148,7 +148,7 @@ class FinalDecisionEngine:
 
     def evaluate_company(self, company: Dict):
 
-        metrics = compute_metrics(company)
+        metrics = self.compute_metrics(company)
 
         # Simple rule-based compliance
         violations = []
@@ -225,9 +225,9 @@ def run_pipeline(tenant_id: str, payload: CompanyInput):
         "rule_code": "SHARIAH_SCREENING",
         "fatwa_version": 1,
         "triggered_by": "api",
-        "debt_ratio": features.get("debt_ratio"),
-        "liquidity_ratio": features.get("liquidity_ratio"),
-        "non_halal_income_ratio": features.get("non_halal_income_ratio"),
+        "debt_ratio": result.get("features", {}).get("debt_ratio"),
+        "liquidity_ratio": result.get("features", {}).get("liquidity_ratio"),
+        "non_halal_income_ratio": result.get("features", {}).get("non_halal_income_ratio"),
         }
 
     insert_audit_log(audit_record)
