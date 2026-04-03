@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabaseClient";
 
 export default function AuditLogs() {
   const [industries, setIndustries] = useState([]);
+  const username = localStorage.getItem("username") || "John Doe";
   const [industry, setIndustry] = useState("");
   const [compliance, setCompliance] = useState("");
   const [dateRange, setDateRange] = useState([null, null]);
@@ -84,12 +85,10 @@ export default function AuditLogs() {
       <Sidebar active="audit-logs" />
 
       <div className="flex-1 flex flex-col">
-        <Topbar />
+        <Topbar username={username}/>
 
         <div className="p-6">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">
-            Audit Logs
-          </h1>
+          
 
           <div className="grid grid-cols-4 grid-rows-4 gap-5">
 

@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabaseClient"; // single instance
 import axios from "axios";
 import Sidebar from "../components/dashboard/Sidebar";
 import Topbar from "../components/dashboard/Topbar";
+import jsPDF from "jspdf";
 
 const DataAnalysis = () => {
   const [singleData, setSingleData] = useState({
@@ -15,11 +16,48 @@ const DataAnalysis = () => {
     nonHalalIncome: "",
     cashInterestSecurities: "",
   });
+  const username = localStorage.getItem("username") || "John Doe";
   const [submitted, setSubmitted] = useState(false);
   const [bulkFile, setBulkFile] = useState(null);
   const [industries, setIndustries] = useState([]);
+  const [analysisResult, setAnalysisResult] = useState(null);
+  const [bulkResults, setBulkResults] = useState([]);
   const [errors, setErrors] = useState({});
+  const downloadSingleCSV = (data) => {
+  if (!data) return;
 
+  const headers = [
+    "company_id",
+    "risk_score",
+    "status",
+    "violations",
+    "debt_ratio",
+    "liquidity_ratio",
+    "non_halal_income_ratio"
+  ];
+
+  const f = data.result.features || {};
+
+  const row = [
+    data.company_id,
+    data.result.risk_score,
+    data.result.status,
+    data.result.violations.join("; "),
+    f.debt_ratio,
+    f.liquidity_ratio,
+    f.non_halal_income_ratio
+  ];
+
+  const csv = headers.join(",") + "\n" + row.join(",");
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${data.company_id}.csv`;
+  a.click();
+};
   useEffect(() => {
     const fetchIndustries = async () => {
       const { data, error } = await supabase
@@ -33,6 +71,73 @@ const DataAnalysis = () => {
     };
     fetchIndustries();
   }, []);
+  const downloadBulkCSV = () => {
+  if (!bulkResults.length) return;
+
+  const headers = [
+    "company_id",
+    "risk_score",
+    "status",
+    "debt_ratio",
+    "liquidity_ratio",
+    "non_halal_income_ratio"
+  ];
+
+  const rows = bulkResults.map(item => {
+    const f = item.result.features || {};
+
+    return [
+      item.company_id,
+      item.result.risk_score,
+      item.result.status,
+      f.debt_ratio,
+      f.liquidity_ratio,
+      f.non_halal_income_ratio
+    ].join(",");
+  });
+
+  const csv = headers.join(",") + "\n" + rows.join("\n");
+
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "bulk_analysis.csv";
+  a.click();
+};
+const downloadBulkPDF = () => {
+  if (!bulkResults.length) return;
+
+  const doc = new jsPDF();
+
+  doc.text("Bulk Shariah Compliance Report", 10, 10);
+
+  let y = 20;
+
+  bulkResults.forEach((item, i) => {
+    const f = item.result.features || {};
+
+    doc.text(`Company ${i + 1}: ${item.company_id}`, 10, y);
+    y += 10;
+
+    doc.text(`Score: ${item.result.risk_score}`, 10, y);
+    y += 10;
+
+    doc.text(`Status: ${item.result.status}`, 10, y);
+    y += 10;
+
+    doc.text(`Debt: ${f.debt_ratio}`, 10, y);
+    y += 10;
+
+    if (y > 270) {
+      doc.addPage();
+      y = 10;
+    }
+  });
+
+  doc.save("bulk_report.pdf");
+};
 
   const handleSingleChange = (e) => {
     const { name, value } = e.target;
@@ -44,6 +149,8 @@ const DataAnalysis = () => {
     if (!singleData.companyName.trim() || !singleData.companyIndustry) {
       alert("Company Name and Industry are required.");
       return;
+      
+      
     }
 
     // Prepare numeric fields with fallback to 0
@@ -65,10 +172,12 @@ const DataAnalysis = () => {
         payload
       );
       console.log(res.data);
+      setAnalysisResult(res.data); // save the response for download
       setSubmitted(true);
       alert("Single company analysis submitted successfully!");
     } catch (err) {
       console.error("Error submitting single company:", err);
+      alert("Single company analysis submitted successfully!");
       alert("Failed to submit single company. Check backend logs for details.");
     }
   };
@@ -77,6 +186,7 @@ const DataAnalysis = () => {
     const file = e.target.files[0];
     if (file?.type !== "text/csv") return alert("Only CSV files are allowed!");
     setBulkFile(file);
+    
   };
 
   const handleBulkSubmit = async () => {
@@ -91,20 +201,49 @@ const DataAnalysis = () => {
         { headers: { "Content-Type": "multipart/form-data" } }
       );
       console.log(res.data);
+      setBulkResults(res.data.results);
       alert("Bulk analysis completed successfully!");
     } catch (err) {
       console.error(err);
       alert("Failed to submit bulk CSV.");
     }
   };
+  const downloadSinglePDF = (data) => {
+  if (!data) return;
+
+  const doc = new jsPDF();
+
+  doc.setFontSize(16);
+  doc.text("Shariah Compliance Report", 10, 10);
+
+  doc.setFontSize(12);
+  doc.text(`Company ID: ${data.company_id}`, 10, 20);
+  doc.text(`Risk Score: ${data.result.risk_score}`, 10, 30);
+  doc.text(`Status: ${data.result.status}`, 10, 40);
+
+  const violations =
+    data.result.violations.length > 0
+      ? data.result.violations.join(", ")
+      : "None";
+
+  doc.text(`Violations: ${violations}`, 10, 50);
+
+  const f = data.result.features || {};
+
+  doc.text(`Debt Ratio: ${f.debt_ratio}`, 10, 60);
+  doc.text(`Liquidity Ratio: ${f.liquidity_ratio}`, 10, 70);
+  doc.text(`Non-Halal Income Ratio: ${f.non_halal_income_ratio}`, 10, 80);
+
+  doc.save(`${data.company_id}.pdf`);
+};
 
   return (
     <div className="flex min-h-screen bg-[#F9FAFB]">
       <Sidebar />
       <div className="flex-1 flex flex-col">
-        <Topbar />
+        <Topbar username={username}/>
         <div className="p-6">
-          <h1 className="text-xl font-semibold text-gray-800 mb-6">Data Analysis</h1>
+          
           <div className="grid grid-cols-4 grid-rows-3 gap-6">
             {/* Single Company */}
             <div className="col-span-2 row-span-2 bg-white rounded-2xl shadow p-5">
@@ -183,16 +322,16 @@ const DataAnalysis = () => {
                 </button>
               </div>
 
-              {submitted && (
+              {submitted && analysisResult && (
                 <div className="mt-4 flex gap-3">
                   <button
-                    onClick={downloadSingleCSV}
+                    onClick={() => downloadSingleCSV(analysisResult)}
                     className="px-5 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                   >
                     Download CSV
                   </button>
                   <button
-                    onClick={downloadSinglePDF}
+                    onClick={() => downloadSinglePDF(analysisResult)}
                     className="px-7 py-2 bg-blue-700 text-white rounded hover:bg-indigo-700"
                   >
                     Download PDF
@@ -235,6 +374,23 @@ const DataAnalysis = () => {
               >
                 Submit Bulk
               </button>
+              {bulkResults.length > 0 && (
+  <div className="mt-4 flex gap-3">
+    <button
+      onClick={downloadBulkCSV}
+      className="px-5 py-2 bg-green-600 text-white rounded"
+    >
+      Download Bulk CSV
+    </button>
+
+    <button
+      onClick={downloadBulkPDF}
+      className="px-5 py-2 bg-blue-700 text-white rounded"
+    >
+      Download Bulk PDF
+    </button>
+  </div>
+)}
             </div>
           </div>
         </div>
