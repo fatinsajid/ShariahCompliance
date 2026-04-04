@@ -279,57 +279,22 @@ async def analyze_bulk(request: Request, file: UploadFile = File(...)):
 
     for idx, row in df.iterrows():
         try:
-            payload = CompanyInput(**row.to_dict())
-            company_id = str(uuid4(NAMESPACE_URL, f"{tenant_id}-{payload.company_name}"))
-            company_data = payload.dict()
-            company_data["company_id"] = company_id
-
-            engine = FinalDecisionEngine(tenant_id)
-            result = engine.evaluate_company(company_data)
-            result_clean = clean_for_json(result)
-
-            audit_record = {
-                "audit_id": str(uuid4()),
-                "tenant_id": tenant_id,
-                "company_id": company_id,
-                "company_name": payload.company_name,
-                "company_industry": payload.company_industry,
-                "created_at": datetime.utcnow().isoformat(),
-                "audit_details": result_clean,
-                "violations_count": len(result_clean.get("violations", [])),
-                "risk_score": result_clean.get("risk_score"),
-                "explanation": json.dumps(result_clean.get("explanation")),
-                "anomaly_flag": str(result_clean.get("anomalies", {}).get("anomaly_flag")),
-                "total_assets": payload.total_assets,
-                "total_debt": payload.total_debt,
-                "total_income": payload.total_income,
-                "non_halal_income": payload.non_halal_income,
-                "cash_and_interest_securities": payload.cash_and_interest_securities,
-                "compliance_status": result_clean.get("status"),
-                "rule_code": "SHARIAH_SCREENING",
-                "fatwa_version": 1,
-                "triggered_by": "api",
-                "debt_ratio": result_clean.get("features", {}).get("debt_ratio"),
-                "liquidity_ratio": result_clean.get("features", {}).get("liquidity_ratio"),
-                "non_halal_income_ratio": result_clean.get("features", {}).get("non_halal_income_ratio"),
+            clean_row = {
+                k: (None if pd.isna(v) else v)
+                for k, v in row.to_dict().items()
             }
 
-            audit_records.append(audit_record)
-            results.append({"company_id": company_id, "result": result_clean})
+            payload = CompanyInput(**clean_row)
+
+            result = run_pipeline(tenant_id, payload)
+            results.append(result)
 
         except Exception as e:
-            errors.append({"row": idx, "error": str(e)})
-
-    # 🔹 Insert all at once
-    if audit_records:
-        insert_audit_logs_bulk(audit_records)
-
-    return {
-        "processed": len(results),
-        "failed": len(errors),
-        "results": results,
-        "errors": errors,
-    }
+            errors.append({
+                "row": int(idx),
+                "error": str(e),
+                "data": row.to_dict()
+            })
 @app.get("/audit/logs")
 def get_logs(request: Request):
     tenant_id = request.state.tenant_id
