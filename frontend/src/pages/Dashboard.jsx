@@ -202,7 +202,7 @@ const Dashboard = () => {
                 <tbody>
                   {data.recentAuditLogs?.length > 0 ? (
                     data.recentAuditLogs.map((log, idx) => (
-                      <tr key={idx} className="border-b">
+                      <tr key={log.comppany_id} className="border-b">
                         <td className="py-2 px-3">
                           {log.company}
                         </td>

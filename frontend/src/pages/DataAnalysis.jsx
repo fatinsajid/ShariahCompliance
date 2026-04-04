@@ -21,6 +21,8 @@ const DataAnalysis = () => {
   const [bulkFile, setBulkFile] = useState(null);
   const [industries, setIndustries] = useState([]);
   const [analysisResult, setAnalysisResult] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [bulkResults, setBulkResults] = useState([]);
   const [errors, setErrors] = useState({});
   const downloadSingleCSV = (data) => {
@@ -67,7 +69,17 @@ const DataAnalysis = () => {
         .order("company_industry", { ascending: true });
 
       if (error) console.error(error);
-      else setIndustries([...new Set(data.map((i) => i.company_industry))]);
+      else {
+  const uniqueIndustries = [
+    ...new Set(
+      data
+        .map((i) => i.company_industry)
+        .filter(Boolean)
+        .map((i) => i.trim())
+    ),
+  ];
+  setIndustries(uniqueIndustries);
+}
     };
     fetchIndustries();
   }, []);
@@ -83,9 +95,9 @@ const DataAnalysis = () => {
     "non_halal_income_ratio"
   ];
 
-  const rows = bulkResults.map(item => {
+  const rows = bulkResults.map((item, idx) => {
     const f = item.result.features || {};
-
+  
     return [
       item.company_id,
       item.result.risk_score,
@@ -183,31 +195,53 @@ const downloadBulkPDF = () => {
   };
 
   const handleBulkUpload = (e) => {
-    const file = e.target.files[0];
-    if (file?.type !== "text/csv") return alert("Only CSV files are allowed!");
-    setBulkFile(file);
-    
-  };
+  const file = e.target.files[0];
+
+  if (!file) return;
+
+  if (!file.name.endsWith(".csv")) {
+    alert("Only CSV files are allowed!");
+    return;
+  }
+
+  // Reset previous results
+  setBulkResults([]);
+  setAnalysisResult(null);
+
+  // IMPORTANT: create fresh file reference (fixes ERR_UPLOAD_FILE_CHANGED)
+  const newFile = new File([file], file.name, { type: file.type });
+
+  setBulkFile(newFile);
+};
 
   const handleBulkSubmit = async () => {
-    if (!bulkFile) return;
-    const formData = new FormData();
-    formData.append("file", bulkFile);
+  if (!bulkFile) return;
 
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_BACKEND_URL}/api/analyze/bulk`,
-        formData,
-        { headers: { "Content-Type": "multipart/form-data" } }
-      );
-      console.log(res.data);
-      setBulkResults(res.data.results);
-      alert("Bulk analysis completed successfully!");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to submit bulk CSV.");
+  const formData = new FormData();
+  formData.append("file", bulkFile);
+
+  try {
+    const res = await axios.post(
+      `${import.meta.env.VITE_BACKEND_URL}/api/analyze/bulk`,
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
+    );
+
+    console.log("Bulk Response:", res.data);
+
+    // Guard against null or unexpected structure
+    if (!res.data || !Array.isArray(res.data.results)) {
+      alert("Backend returned an invalid response for bulk upload.");
+      return;
     }
-  };
+
+    setBulkResults(res.data.results);
+    alert("Bulk analysis completed successfully!");
+  } catch (err) {
+    console.error("Bulk Upload Error:", err);
+    alert("Failed to submit bulk CSV. Check console for details.");
+  }
+};
   const downloadSinglePDF = (data) => {
   if (!data) return;
 
@@ -374,6 +408,7 @@ const downloadBulkPDF = () => {
               >
                 Submit Bulk
               </button>
+              
               {bulkResults.length > 0 && (
   <div className="mt-4 flex gap-3">
     <button
