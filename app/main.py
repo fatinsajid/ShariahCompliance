@@ -94,7 +94,7 @@ async def auth_middleware(request: Request, call_next):
 
     # fallback (VERY IMPORTANT for UUID column)
     if not tenant_id:
-        tenant_id = str(uuid4())
+        tenant_id = "public"  # or a fixed test tenant
 
     request.state.tenant_id = tenant_id
     return await call_next(request)
