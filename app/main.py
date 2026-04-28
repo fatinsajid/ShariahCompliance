@@ -8,7 +8,7 @@
 import os
 import io
 import json
-from uuid import uuid4, NAMESPACE_URL
+from uuid import uuid4, NAMESPACE_URL, UUID
 from datetime import datetime
 from typing import Optional, List, Dict
 
@@ -94,7 +94,10 @@ async def auth_middleware(request: Request, call_next):
 
     # fallback (VERY IMPORTANT for UUID column)
     if not tenant_id:
-        tenant_id = "public"  # or a fixed test tenant
+        raise HTTPException(status_code=401, detail="Missing tenant context")
+
+    # Ensure valid UUID
+    tenant_id = str(UUID(tenant_id))
 
     request.state.tenant_id = tenant_id
     return await call_next(request)
