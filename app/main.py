@@ -233,7 +233,7 @@ def run_pipeline(tenant_id: str, payload: CompanyInput):
         "cash_and_interest_securities": payload.cash_and_interest_securities,
         "compliance_status": result.get("status") or "unknown",
         "rule_code": "SHARIAH_SCREENING",
-        "fatwa_version": 1,
+        "fatwa_version": "1",
         "triggered_by": "api",
         "debt_ratio": result.get("features", {}).get("debt_ratio"),
         "liquidity_ratio": result.get("features", {}).get("liquidity_ratio"),
