@@ -222,8 +222,8 @@ def run_pipeline(tenant_id: str, payload: CompanyInput):
         "company_industry": payload.company_industry,
         "created_at": datetime.utcnow().isoformat(),
         "audit_details": result,
-        "violations_count": len(result.get("violations", [])),
-        "risk_score": result.get("risk_score"),
+        "violations_count": len(result.get("violations", [])) or 0,
+        "risk_score": result.get("risk_score") or 0,
         "explanation": json.dumps(result.get("explanation")),
         "anomaly_flag": str(result.get("anomalies", {}).get("anomaly_flag")),
         "total_assets": payload.total_assets,
@@ -231,7 +231,7 @@ def run_pipeline(tenant_id: str, payload: CompanyInput):
         "total_income": payload.total_income,
         "non_halal_income": payload.non_halal_income,
         "cash_and_interest_securities": payload.cash_and_interest_securities,
-        "compliance_status": result.get("status"),
+        "compliance_status": result.get("status") or "unknown",
         "rule_code": "SHARIAH_SCREENING",
         "fatwa_version": 1,
         "triggered_by": "api",
@@ -240,9 +240,8 @@ def run_pipeline(tenant_id: str, payload: CompanyInput):
         "non_halal_income_ratio": result.get("features", {}).get("non_halal_income_ratio"),
         }
 
-    res = supabase.table("compliance_audit_log").upsert(
-        audit_record,
-        on_conflict="company_id"  # ensures unique per company
+    res = supabase.table("compliance_audit_log").insert(
+        audit_record
     ).execute()
 
     return {"company_id": company_id, "result": result}
