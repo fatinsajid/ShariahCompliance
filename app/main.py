@@ -76,15 +76,16 @@ def clean_for_json(obj):
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
 
-    # ✅ Allow browser preflight requests
+    # Allow browser preflight requests
     if request.method == "OPTIONS":
-        return await call_next(request)
+        response = await call_next(request)
+        return response
 
     auth_header = request.headers.get("Authorization")
 
     tenant_id = None
 
-    # ✅ Try reading JWT token
+    # Try JWT auth
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
 
@@ -99,18 +100,11 @@ async def auth_middleware(request: Request, call_next):
             tenant_id = payload.get("sub")
 
         except JWTError:
-            return JSONResponse(
-                status_code=401,
-                content={"detail": "Invalid token"}
-            )
+            print("JWT decode failed")
 
-    # ✅ TEMP DEV FALLBACK
-    # Hardcoded tenant UUID
+    # TEMP DEV FALLBACK
     if not tenant_id:
         tenant_id = "11111111-1111-1111-1111-111111111111"
-
-    # ✅ Ensure UUID format
-    tenant_id = str(UUID(tenant_id))
 
     request.state.tenant_id = tenant_id
 
