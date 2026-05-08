@@ -158,42 +158,88 @@ const downloadBulkPDF = () => {
   };
 
   const handleSingleSubmit = async () => {
-    if (!singleData.companyName.trim() || !singleData.companyIndustry) {
-      alert("Company Name and Industry are required.");
+  if (!singleData.companyName.trim()) {
+    alert("Company name is required");
+    return;
+  }
+
+  try {
+    setUploading(true);
+
+    // ✅ Get logged in user session
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      alert("User session not found");
       return;
-      
-      
     }
 
-    // Prepare numeric fields with fallback to 0
+    // ✅ Backend payload
     const payload = {
       company_name: singleData.companyName.trim(),
-      company_industry: singleData.companyIndustry,
-      total_assets: parseFloat(singleData.totalAsset) || 0,
-      total_debt: parseFloat(singleData.totalDebt) || 0,
-      total_income: parseFloat(singleData.totalIncome) || 0,
-      non_halal_income: parseFloat(singleData.nonHalalIncome) || 0,
-      cash_and_interest_securities: parseFloat(singleData.cashInterestSecurities) || 0,
+      company_industry: singleData.companyIndustry || "Unknown",
+
+      total_assets: Number(singleData.totalAsset) || 0,
+      total_debt: Number(singleData.totalDebt) || 0,
+      total_income: Number(singleData.totalIncome) || 0,
+      non_halal_income: Number(singleData.nonHalalIncome) || 0,
+      cash_and_interest_securities:
+        Number(singleData.cashInterestSecurities) || 0,
     };
 
-    console.log("Validated payload:", payload);
+    console.log("Sending payload:", payload);
 
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_BACKEND_URL}/api/analyze/single`,
-        payload
-      );
-      console.log(res.data);
-      setAnalysisResult(res.data); // save the response for download
-      setSubmitted(true);
-      alert("Single company analysis submitted successfully!");
-    } catch (err) {
-      console.error("Error submitting single company:", err);
-      alert("Single company analysis submitted successfully!");
-      alert("Failed to submit single company. Check backend logs for details.");
-    }
-  };
+    // ✅ Send authenticated request
+    const res = await axios.post(
+      `${import.meta.env.VITE_BACKEND_URL}/api/analyze/single`,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
+    console.log("Backend response:", res.data);
+
+    // ✅ Save result
+    setAnalysisResult(res.data);
+
+    // ✅ Success state
+    setSubmitted(true);
+
+    // ✅ Reset form
+    setSingleData({
+      companyName: "",
+      companyIndustry: "",
+      totalAsset: "",
+      totalDebt: "",
+      totalIncome: "",
+      nonHalalIncome: "",
+      cashInterestSecurities: "",
+    });
+
+    alert("Analysis completed successfully!");
+
+  } catch (err) {
+    console.error("Single analysis error:", err);
+
+    console.error(
+      "Backend response:",
+      err.response?.data
+    );
+
+    alert(
+      err.response?.data?.detail ||
+      "Failed to analyze company"
+    );
+  } finally {
+    setUploading(false);
+  }
+};
   const handleBulkUpload = (e) => {
   const file = e.target.files[0];
 
