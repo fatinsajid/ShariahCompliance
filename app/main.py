@@ -75,12 +75,19 @@ def clean_for_json(obj):
 # ----------------------------
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
+
+    # ✅ Allow browser preflight requests
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     auth_header = request.headers.get("Authorization")
 
-    tenant_id = None  # default safe
+    tenant_id = None
 
+    # ✅ Try reading JWT token
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
+
         try:
             payload = jwt.decode(
                 token,
@@ -88,19 +95,28 @@ async def auth_middleware(request: Request, call_next):
                 algorithms=["HS256"],
                 audience="authenticated"
             )
+
             tenant_id = payload.get("sub")
+
         except JWTError:
-            return JSONResponse(status_code=401, content={"detail": "Invalid token"})
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Invalid token"}
+            )
 
-    # fallback (VERY IMPORTANT for UUID column)
+    # ✅ TEMP DEV FALLBACK
+    # Hardcoded tenant UUID
     if not tenant_id:
-        raise HTTPException(status_code=401, detail="Missing tenant context")
+        tenant_id = "11111111-1111-1111-1111-111111111111"
 
-    # Ensure valid UUID
+    # ✅ Ensure UUID format
     tenant_id = str(UUID(tenant_id))
 
     request.state.tenant_id = tenant_id
-    return await call_next(request)
+
+    response = await call_next(request)
+
+    return response
 # ----------------------------
 # 6️⃣ DAL (Supabase Only)
 # ----------------------------
