@@ -274,6 +274,7 @@ def analyze_single(payload: CompanyInput, request: Request):
 # ----------------------------
 @app.post("/api/analyze/bulk")
 async def analyze_bulk(request: Request, file: UploadFile = File(...)):
+
     tenant_id = request.state.tenant_id
 
     if not file.filename.endswith(".csv"):
@@ -282,10 +283,8 @@ async def analyze_bulk(request: Request, file: UploadFile = File(...)):
     content = await file.read()
     df = pd.read_csv(io.BytesIO(content))
 
-    # Normalize columns
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
 
-    audit_records = []
     results = []
     errors = []
 
@@ -299,7 +298,12 @@ async def analyze_bulk(request: Request, file: UploadFile = File(...)):
             payload = CompanyInput(**clean_row)
 
             result = run_pipeline(tenant_id, payload)
-            results.append(result)
+
+            results.append({
+                "row": int(idx),
+                "company_id": result["company_id"],
+                "result": result["result"]
+            })
 
         except Exception as e:
             errors.append({
@@ -307,6 +311,14 @@ async def analyze_bulk(request: Request, file: UploadFile = File(...)):
                 "error": str(e),
                 "data": row.to_dict()
             })
+
+    return {
+        "success": True,
+        "processed": len(results),
+        "failed": len(errors),
+        "results": results,
+        "errors": errors
+    }
 @app.get("/audit/logs")
 def get_logs(request: Request):
     tenant_id = request.state.tenant_id
