@@ -15,7 +15,7 @@ from typing import Optional, List, Dict
 import numpy as np
 import pandas as pd
 
-
+from fastapi.responses import JSONResponse
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
