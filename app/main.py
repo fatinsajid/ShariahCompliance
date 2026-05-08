@@ -8,7 +8,7 @@
 import os
 import io
 import json
-from uuid import uuid4, NAMESPACE_URL, UUID
+from uuid import uuid4, NAMESPACE_URL, UUID, uuid5
 from datetime import datetime
 from typing import Optional, List, Dict
 
@@ -217,7 +217,7 @@ class CompanyInput(BaseModel):
 # ----------------------------
 
 def run_pipeline(tenant_id: str, payload: CompanyInput):
-    company_id = str(uuid4(NAMESPACE_URL, f"{tenant_id}-{payload.company_name}"))
+    company_id = str(uuid5(NAMESPACE_URL, f"{tenant_id}-{payload.company_name}"))
 
     company_data = payload.dict()
     company_data["company_id"] = company_id
