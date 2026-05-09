@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabaseClient";
-import loginBg from "../components/dashboard/loginbg.jpg"; // your background image
+import loginBg from "../components/dashboard/loginBg.jpg"; // your background image
 import logo from "../components/dashboard/logo.png";
 
 const Login = () => {
