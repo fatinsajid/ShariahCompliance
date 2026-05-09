@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
-import loginBg from "../components/dashboard/loginBg.jpg"; // your background image
-import logo from "../components/dashboard/logo.png";
+import logo from "../assets/logo.png";
+import loginBg from "../assets/loginBg.jpg";
 
 const ResetPassword = () => {
   const navigate = useNavigate();
