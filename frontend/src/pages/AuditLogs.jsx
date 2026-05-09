@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import Sidebar from "../components/Dashboard/sidebar";
-import Topbar from "../components/dashboard/Topbar";
+import Topbar from "../components/Dashboard/TopBar";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { supabase } from "../lib/supabaseClient";

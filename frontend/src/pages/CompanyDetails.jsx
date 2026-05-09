@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Sidebar from "../components/Dashboard/sidebar";
-import TopBar from "../components/dashboard/Topbar";
+import TopBar from "../components/Dashboard/TopBar";
 import { supabase } from "../lib/supabaseClient";
 
 const CompanyDetails = () => {
