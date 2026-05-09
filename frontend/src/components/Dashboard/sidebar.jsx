@@ -8,7 +8,7 @@ import {
   FiBarChart2,
   FiInfo,
 } from "react-icons/fi";
-import logo from "../assets/logo.png";
+import logo from "../../assets/logo.png";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../../lib/supabaseClient";
 
