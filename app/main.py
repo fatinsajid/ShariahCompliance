@@ -46,6 +46,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "https://shariahcompliance.onrender.com",
+        "https://shariah-compliance-klex-git-master-fatinsajids-projects.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
