@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import Sidebar from "../components/dashboard/Sidebar";
+import Sidebar from "../components/Dashboard/sidebar";
 import Topbar from "../components/dashboard/Topbar";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";

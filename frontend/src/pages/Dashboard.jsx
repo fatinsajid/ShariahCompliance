@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import TopBar from "../components/dashboard/TopBar";
-import Sidebar from "../components/dashboard/Sidebar";
+import Sidebar from "../components/Dashboard/sidebar";
 import { supabase } from "../lib/supabaseClient";
 
 import {

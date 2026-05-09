@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabaseClient"; // single instance
 import axios from "axios";
-import Sidebar from "../components/dashboard/Sidebar";
+import Sidebar from "../components/Dashboard/sidebar";
 import Topbar from "../components/dashboard/Topbar";
 import jsPDF from "jspdf";
 
