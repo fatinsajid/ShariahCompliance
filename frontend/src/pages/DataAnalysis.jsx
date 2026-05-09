@@ -175,7 +175,7 @@ const downloadBulkPDF = () => {
       alert("User session not found");
       return;
     }
-
+    
     // ✅ Backend payload
     const payload = {
       company_name: singleData.companyName.trim(),
@@ -190,7 +190,8 @@ const downloadBulkPDF = () => {
     };
 
     console.log("Sending payload:", payload);
-
+    const session = await supabase.auth.getSession();
+    const token = session.data.session?.access_token;
     // ✅ Send authenticated request
     const res = await axios.post(
       `${import.meta.env.VITE_BACKEND_URL}/api/analyze/single`,
@@ -267,6 +268,8 @@ const downloadBulkPDF = () => {
   formData.append("file", bulkFile);
 
   try {
+    const session = await supabase.auth.getSession();
+    const token = session.data.session?.access_token;
     const res = await axios.post(
       `${import.meta.env.VITE_BACKEND_URL}/api/analyze/bulk`,
       formData,
