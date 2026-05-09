@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import loginBg from "../components/dashboard/loginbg.jpg"; // your background image
-import logo from "../components/dashboard/Logo.png";
+import logo from "../components/dashboard/logo.png";
 
 
 const ForgotPassword = () => {
