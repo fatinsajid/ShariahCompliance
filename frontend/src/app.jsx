@@ -3,12 +3,12 @@ import { useEffect, useState } from "react";
 import { supabase } from "./lib/supabaseClient";
 
 // Pages
-import Login from "./pages/Login";
-import Register from "./pages/Register";
+import Login from "./pages/login";
+import Register from "./pages/register";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 
-import Dashboard from "./pages/Dashboard";
+import Dashboard from "./pages/dashboard";
 import CompanyDetails from "./pages/CompanyDetails";
 import AuditLogs from "./pages/AuditLogs";
 import DataAnalysis from "./pages/DataAnalysis";
